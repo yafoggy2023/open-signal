@@ -7,8 +7,8 @@
 // ── НАСТРОЙКИ ────────────────────────────────────────
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'fsb_portal');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_USER', 'opensignal');
+define('DB_PASS', 'CHANGE_ME_ON_DEPLOY'); // заменить на VPS после git pull
 define('UPLOAD_DIR', __DIR__ . '/uploads/');
 define('MAX_FILE_SIZE', 50 * 1024 * 1024); // 50 МБ
 define('SESSION_TIMEOUT', 30 * 60); // 30 минут

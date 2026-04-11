@@ -13,8 +13,8 @@ if (!file_exists($__tokenFile)) {
 define('BOT_TOKEN', trim(file_get_contents($__tokenFile)));
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'fsb_portal');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_USER', 'opensignal');
+define('DB_PASS', 'CHANGE_ME_ON_DEPLOY'); // заменить на VPS после git pull
 define('SITE_URL', 'http://localhost/fsb');
 // URL страницы выбора на карте (HTTPS обязателен для Telegram WebApp!)
 // Разместите map_picker.html на GitHub Pages или любом HTTPS-хостинге

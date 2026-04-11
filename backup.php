@@ -13,11 +13,11 @@
 // ── НАСТРОЙКИ ─────────────────────────────────────
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'fsb_portal');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_USER', 'opensignal');
+define('DB_PASS', 'CHANGE_ME_ON_DEPLOY'); // заменить на VPS после git pull
 define('BACKUP_DIR', __DIR__ . '/backups/');
 define('KEEP_DAYS', 30); // Хранить дампы последние 30 дней
-define('MYSQLDUMP', 'C:\\xampp\\mysql\\bin\\mysqldump.exe'); // Linux: '/usr/bin/mysqldump'
+define('MYSQLDUMP', '/usr/bin/mysqldump'); // Linux. Windows XAMPP: 'C:\\xampp\\mysql\\bin\\mysqldump.exe'
 
 // ── СОЗДАЁМ ПАПКУ ─────────────────────────────────
 if (!is_dir(BACKUP_DIR)) {
