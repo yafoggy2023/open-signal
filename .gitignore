@@ -2,6 +2,7 @@
 bot_token.txt
 bot_token.txt.txt
 bot_token*
+config.local.php
 
 # Загрузки пользователей
 uploads/*

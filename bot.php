@@ -11,10 +11,14 @@ if (!file_exists($__tokenFile)) {
     die("bot_token.txt not found. Create it with your Telegram bot token.\n");
 }
 define('BOT_TOKEN', trim(file_get_contents($__tokenFile)));
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'fsb_portal');
-define('DB_USER', 'opensignal');
-define('DB_PASS', 'CHANGE_ME_ON_DEPLOY'); // заменить на VPS после git pull
+
+// Креды БД — в config.local.php (не коммитится в git). Шаблон: config.local.example.php
+$__config = __DIR__ . '/config.local.php';
+if (!file_exists($__config)) {
+    die("config.local.php не найден. Скопируйте config.local.example.php в config.local.php и впишите реальные значения.\n");
+}
+require_once $__config;
+
 define('SITE_URL', 'http://localhost/fsb');
 // URL страницы выбора на карте (HTTPS обязателен для Telegram WebApp!)
 // Разместите map_picker.html на GitHub Pages или любом HTTPS-хостинге

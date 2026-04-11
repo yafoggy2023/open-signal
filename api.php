@@ -5,10 +5,20 @@
  */
 
 // ── НАСТРОЙКИ ────────────────────────────────────────
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'fsb_portal');
-define('DB_USER', 'opensignal');
-define('DB_PASS', 'CHANGE_ME_ON_DEPLOY'); // заменить на VPS после git pull
+// Креды БД и путь к mysqldump — в config.local.php (не коммитится в git).
+// Шаблон: config.local.example.php
+$__config = __DIR__ . '/config.local.php';
+if (!file_exists($__config)) {
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'ok' => false,
+        'error' => 'config.local.php не найден. Скопируйте config.local.example.php в config.local.php и впишите реальные значения.'
+    ]);
+    exit;
+}
+require_once $__config;
+
 define('UPLOAD_DIR', __DIR__ . '/uploads/');
 define('MAX_FILE_SIZE', 50 * 1024 * 1024); // 50 МБ
 define('SESSION_TIMEOUT', 30 * 60); // 30 минут
