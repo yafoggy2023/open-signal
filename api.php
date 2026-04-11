@@ -565,15 +565,21 @@ switch ($action) {
 
         $db_id = $ap['id'];
 
-        // Искать файл по числовому ID (основной путь)
-        $path = UPLOAD_DIR . $db_id . '/' . $filename;
-
-        // Запасной — старая папка с кириллицей
-        if (!file_exists($path)) {
-            $path = UPLOAD_DIR . $appeal_id . '/' . $filename;
+        // Ищем файл в трёх возможных местах (исторически сложилось, что разные
+        // источники клали файлы в разные пути):
+        //   1) uploads/<appeal_id>/<filename>  — веб-форма, демо-данные, новый bot.php
+        //   2) uploads/<filename>              — старые Telegram-загрузки (плоско в корне)
+        //   3) uploads/<db_id>/<filename>      — никогда не использовалось, оставлено на всякий
+        $candidates = [
+            UPLOAD_DIR . $appeal_id . '/' . $filename,
+            UPLOAD_DIR . $filename,
+            UPLOAD_DIR . $db_id . '/' . $filename,
+        ];
+        $path = null;
+        foreach ($candidates as $c) {
+            if (file_exists($c)) { $path = $c; break; }
         }
-
-        if (!file_exists($path)) {
+        if ($path === null) {
             json_error('Файл не найден', 404);
         }
 

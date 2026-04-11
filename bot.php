@@ -156,15 +156,24 @@ function downloadTgFile($fileId, $fileName, $appealDbId) {
     $fileSize = $resp['result']['file_size'] ?? 0;
     $url = "https://api.telegram.org/file/bot" . BOT_TOKEN . "/$filePath";
 
-    // Безопасное имя файла
-    $safeName = preg_replace('/[^a-zA-Z0-9а-яА-ЯёЁ._\-]/u', '_', $fileName);
-    $saveName = $appealDbId . '_' . time() . '_' . $safeName;
-    $savePath = __DIR__ . '/uploads/' . $saveName;
+    // Определяем appeal_id (текстовый) — файлы кладём в папку uploads/<appeal_id>/,
+    // как это делает веб-форма. Так get_file в api.php единообразно их находит.
+    $stmt = $pdo->prepare("SELECT appeal_id FROM appeals WHERE id = ?");
+    $stmt->execute([$appealDbId]);
+    $row = $stmt->fetch();
+    if (!$row) return false;
+    $appealId = $row['appeal_id'];
 
-    // Создаём папку если нет
-    if (!is_dir(__DIR__ . '/uploads/')) {
-        mkdir(__DIR__ . '/uploads/', 0755, true);
+    // Безопасное имя файла. Префикс time() сохраняем — он защищает от коллизий
+    // при нескольких вложениях с одинаковыми именами в одном обращении.
+    $safeName = preg_replace('/[^a-zA-Z0-9а-яА-ЯёЁ._\-]/u', '_', $fileName);
+    $saveName = time() . '_' . $safeName;
+
+    $appealDir = __DIR__ . '/uploads/' . $appealId . '/';
+    if (!is_dir($appealDir)) {
+        mkdir($appealDir, 0755, true);
     }
+    $savePath = $appealDir . $saveName;
 
     $content = @file_get_contents($url);
     if ($content === false) return false;
