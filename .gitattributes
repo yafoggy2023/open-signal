@@ -1,0 +1,20 @@
+# Бинарные файлы — без преобразований line endings
+*.pdf binary
+*.mp3 binary
+*.mp4 binary
+*.zip binary
+*.exe binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+
+# Демо-загрузки: всё содержимое — бинарь
+uploads/** binary
+
+# PHP/HTML/SQL/JS — нормализовать в LF
+*.php text eol=lf
+*.html text eol=lf
+*.sql text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.md text eol=lf

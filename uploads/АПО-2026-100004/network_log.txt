@@ -1,0 +1,5 @@
+2026-04-03 14:22:15  46.39.225.115 -> 185.220.101.42  HTTP GET /login.php (phishing)
+2026-04-03 14:22:18  185.220.101.42 -> 46.39.225.115  200 OK (credentials exfil)
+2026-04-03 14:23:01  User-Agent: Mozilla/5.0 (Linux) HeadlessChrome/110
+2026-04-03 14:23:04  TLS SNI: corp-portal-ru.fake (visually similar to corp-portal.ru)
+[DEMO network reconnaissance log]

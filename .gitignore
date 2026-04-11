@@ -4,7 +4,10 @@ bot_token.txt.txt
 bot_token*
 
 # Загрузки пользователей
-uploads/
+uploads/*
+# Но демо-файлы (генерируемые gen_demo_files.php) включаем в репозиторий,
+# чтобы fresh install сразу показывал работу с прикреплёнными файлами.
+!uploads/АПО-2026-1000*/
 
 # Бэкапы
 backups/
@@ -20,6 +23,7 @@ backups/
 *.sql
 !schema.sql
 !db.sql
+!demo_data.sql
 
 # Логи
 *.log

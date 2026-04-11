@@ -1429,7 +1429,6 @@ function openDetail(id){
     document.getElementById('detailStatusBadge').innerHTML=statusBadge(a.status);
     if(!_users.length){loadUsers().then(function(){renderDetailBody(a);});}else{renderDetailBody(a);}
     renderDetailFooter(a);
-    loadVerification(a);
     document.querySelectorAll('#appealsTbody tr').forEach(function(tr){tr.classList.toggle('selected',tr.dataset.id===id);});
 }
 function closeDetail(){
@@ -1556,6 +1555,9 @@ function renderDetailBody(a){
         }).join('')+'</div>':'<div style="font-family:monospace;font-size:11px;color:var(--text-dim);margin-top:6px">Нет связанных</div>')+
     '</div></div>';
 
+    // Достоверность — секция-плейсхолдер, заполняется loadVerification()
+    var verifyHtml='<div class="detail-section" id="verifySection"><div class="detail-section-head">🔍 Проверка достоверности</div><div class="detail-section-body" id="verifySectionBody"><div class="loading-geo">⏳ Анализ сообщения...</div></div></div>';
+
     body.innerHTML=
         '<div class="detail-section"><div class="detail-section-head">Сведения</div><div class="detail-section-body">'+
             '<div class="detail-row"><div class="detail-key">Тема</div><div class="detail-val" style="font-weight:600">'+esc(a.subject)+'</div></div>'+
@@ -1569,11 +1571,15 @@ function renderDetailBody(a){
             '<div class="detail-row"><div class="detail-key">Статус</div><div class="detail-val">'+statusBadge(a.status)+'</div></div>'+
             assignedHtml+spamHtml+
         '</div></div>'+
+        verifyHtml+
         dlHtml+contactHtml+
         '<div class="detail-section"><div class="detail-section-head">Текст сообщения</div><div class="detail-section-body"><p class="detail-text">'+esc(a.message)+'</p></div></div>'+
         filesHtml+
         (a.note?'<div class="detail-section"><div class="detail-section-head">Примечание</div><div class="detail-section-body"><p class="detail-text" style="color:var(--gold)">'+esc(a.note)+'</p></div></div>':'')+
         linkedHtml+commentsHtml+historyHtml;
+
+    // Заполнить секцию достоверности (кешируется в a._verifyCache)
+    loadVerification(a);
 
     // Chat
     document.getElementById('btnSendChat').addEventListener('click',function(){sendComment(a.appeal_id);});
@@ -2081,19 +2087,15 @@ document.getElementById('btnResetForm').addEventListener('click',function(){
 // СКОРИНГ, ГЕОЛОКАЦИЯ, ДУБЛИ
 // ═══════════════════════════════════════════════════════
 function loadVerification(a) {
-    var body = document.getElementById('detailBody');
-    // Find or create verification section
-    var existing = document.getElementById('verifySection');
-    if (existing) existing.remove();
+    // Секция-плейсхолдер уже создана внутри renderDetailBody()
+    var sectionBody = document.getElementById('verifySectionBody');
+    if (!sectionBody) return;
 
-    var section = document.createElement('div');
-    section.id = 'verifySection';
-    section.className = 'detail-section';
-    section.innerHTML = '<div class="detail-section-head">🔍 Проверка достоверности</div>' +
-        '<div class="detail-section-body"><div class="loading-geo">⏳ Анализ сообщения...</div></div>';
-    body.appendChild(section);
-
-    var sectionBody = section.querySelector('.detail-section-body');
+    // Если данные уже загружены ранее для этого обращения — рендерим синхронно
+    if (a._verifyCache) {
+        renderVerification(a, sectionBody, a._verifyCache.scoring, a._verifyCache.dups);
+        return;
+    }
 
     // Load scoring
     var scoringPromise = api('get_scoring', {appeal_id: a.appeal_id}, 'GET')
@@ -2104,9 +2106,16 @@ function loadVerification(a) {
         .catch(function() { return null; });
 
     Promise.all([scoringPromise, dupPromise]).then(function(results) {
-        var scoring = results[0];
-        var dups = results[1];
-        var html = '';
+        a._verifyCache = {scoring: results[0], dups: results[1]};
+        // Секция могла быть перерисована к этому моменту — ищем заново
+        var sb = document.getElementById('verifySectionBody');
+        if (!sb || currentAppealId !== a.appeal_id) return;
+        renderVerification(a, sb, results[0], results[1]);
+    });
+}
+
+function renderVerification(a, sectionBody, scoring, dups) {
+    var html = '';
 
         // ── SCORING ────────────────────────────────
         if (scoring) {
@@ -2187,12 +2196,11 @@ function loadVerification(a) {
             }
         }
 
-        sectionBody.innerHTML = html || '<div class="loading-geo">Данные недоступны</div>';
+    sectionBody.innerHTML = html || '<div class="loading-geo">Данные недоступны</div>';
 
-        // Bind goto clicks on dup items
-        sectionBody.querySelectorAll('.dup-item[data-goto]').forEach(function(el) {
-            el.addEventListener('click', function() { goToAppeal(el.dataset.goto); });
-        });
+    // Bind goto clicks on dup items
+    sectionBody.querySelectorAll('.dup-item[data-goto]').forEach(function(el) {
+        el.addEventListener('click', function() { goToAppeal(el.dataset.goto); });
     });
 }
 
