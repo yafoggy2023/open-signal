@@ -414,7 +414,7 @@ if (isset($update['callback_query'])) {
             editMsg($chatId, $msgId, "✅ <b>Сообщение отправлено!</b>\n\n"
                 . "📋 Номер: <code>$appealId</code>\n"
                 . "📌 Тема: " . htmlspecialchars($d['subject']) . "\n"
-                . "📂 Категория: " . htmlspecialchars($d['category']) . "\n"
+                . "📂 Категория: " . htmlspecialchars($CATEGORIES[$d['category']] ?? $d['category']) . "\n"
                 . "⚡ Приоритет: " . ($PRIORITIES[$d['priority']] ?? $d['priority'])
                 . "$organInfo$locationInfo$dateInfo\n"
                 . "$contactInfo$fileInfo$linkInfo\n\n"
@@ -426,7 +426,7 @@ if (isset($update['callback_query'])) {
             $notify = "🔔 <b>Новое сообщение!</b>\n\n"
                 . "📋 <b>$appealId</b>\n"
                 . "📌 " . htmlspecialchars($d['subject']) . "\n"
-                . "📂 " . htmlspecialchars($d['category']) . "\n"
+                . "📂 " . htmlspecialchars($CATEGORIES[$d['category']] ?? $d['category']) . "\n"
                 . "⚡ " . ($PRIORITIES[$d['priority']] ?? $d['priority']) . "\n"
                 . "$contactInfo$fileInfo$linkInfo\n\n"
                 . mb_substr(htmlspecialchars($msgText), 0, 200) . (mb_strlen($msgText) > 200 ? '...' : '');
@@ -491,7 +491,7 @@ if (isset($update['callback_query'])) {
         $text = "📋 <b>$appealId</b>\n"
             . "━━━━━━━━━━━━━━━━\n"
             . "📌 <b>Тема:</b> " . htmlspecialchars($a['subject']) . "\n"
-            . "📂 <b>Категория:</b> " . htmlspecialchars($a['category']) . "\n"
+            . "📂 <b>Категория:</b> " . htmlspecialchars($CATEGORIES[$a['category']] ?? $a['category']) . "\n"
             . "⚡ <b>Приоритет:</b> " . ($PRIORITIES[$a['priority']] ?? $a['priority']) . "\n"
             . "📊 <b>Статус:</b> " . ($STATUS_LABELS[$a['status']] ?? $a['status']) . "\n"
             . "📅 <b>Дата:</b> " . $a['created_at'] . "\n"
@@ -530,7 +530,7 @@ if (isset($update['callback_query'])) {
         if (!$a) { send($chatId, "❌ Не найдено."); return; }
         send($chatId, "📋 <b>{$a['appeal_id']}</b>\n\n"
             . "📌 <b>Тема:</b> " . htmlspecialchars($a['subject']) . "\n"
-            . "📂 <b>Категория:</b> " . htmlspecialchars($a['category']) . "\n"
+            . "📂 <b>Категория:</b> " . htmlspecialchars($CATEGORIES[$a['category']] ?? $a['category']) . "\n"
             . "⚡ <b>Приоритет:</b> " . ($PRIORITIES[$a['priority']] ?? $a['priority']) . "\n"
             . "📊 <b>Статус:</b> " . ($STATUS_LABELS[$a['status']] ?? $a['status']) . "\n"
             . "📅 <b>Дата:</b> " . $a['created_at']);
@@ -911,7 +911,7 @@ if (strpos($text, '/check ') === 0) {
 
     send($chatId, "📋 <b>{$a['appeal_id']}</b>\n\n"
         . "📌 <b>Тема:</b> " . htmlspecialchars($a['subject']) . "\n"
-        . "📂 <b>Категория:</b> " . htmlspecialchars($a['category']) . "\n"
+        . "📂 <b>Категория:</b> " . htmlspecialchars($CATEGORIES[$a['category']] ?? $a['category']) . "\n"
         . "⚡ <b>Приоритет:</b> " . ($PRIORITIES[$a['priority']] ?? $a['priority']) . "\n"
         . "📊 <b>Статус:</b> " . ($STATUS_LABELS[$a['status']] ?? $a['status']) . "\n"
         . "📅 <b>Дата:</b> " . $a['created_at']);
