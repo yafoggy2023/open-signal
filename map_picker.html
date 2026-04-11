@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Выбор места на карте</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--tg-theme-bg-color, #fff);
+    color: var(--tg-theme-text-color, #000);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+#map { flex: 1; min-height: 0; }
+#info {
+    padding: 12px 16px;
+    font-size: 14px;
+    background: var(--tg-theme-secondary-bg-color, #f0f0f0);
+    border-top: 1px solid rgba(0,0,0,0.1);
+}
+#addr {
+    font-weight: 600;
+    margin-top: 4px;
+    min-height: 20px;
+}
+#hint {
+    font-size: 12px;
+    opacity: 0.6;
+    margin-top: 2px;
+}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="info">
+    <div id="hint">Нажмите на карту для выбора места</div>
+    <div id="addr"></div>
+</div>
+
+<script>
+var tg = window.Telegram.WebApp;
+tg.ready();
+tg.expand();
+
+var selectedAddress = '';
+var selectedLat = null;
+var selectedLon = null;
+var placemark = null;
+
+ymaps.ready(function() {
+    var map = new ymaps.Map('map', {
+        center: [55.751574, 37.573856],
+        zoom: 10,
+        controls: ['zoomControl', 'searchControl', 'geolocationControl']
+    });
+
+    // Клик по карте
+    map.events.add('click', function(e) {
+        var coords = e.get('coords');
+        setMark(map, coords);
+    });
+
+    // Поиск
+    var sc = map.controls.get('searchControl');
+    sc.events.add('resultselect', function() {
+        var idx = sc.getSelectedIndex();
+        sc.getResult(idx).then(function(res) {
+            setMark(map, res.geometry.getCoordinates());
+        });
+    });
+
+    // Геолокация
+    var gl = map.controls.get('geolocationControl');
+    gl.events.add('locationchange', function(e) {
+        setMark(map, e.get('position'));
+    });
+});
+
+function setMark(map, coords) {
+    selectedLat = coords[0];
+    selectedLon = coords[1];
+
+    if (placemark) {
+        placemark.geometry.setCoordinates(coords);
+    } else {
+        placemark = new ymaps.Placemark(coords, {}, {
+            preset: 'islands#redDotIcon',
+            draggable: true
+        });
+        map.geoObjects.add(placemark);
+        placemark.events.add('dragend', function() {
+            var c = placemark.geometry.getCoordinates();
+            reverseGeo(c);
+            selectedLat = c[0];
+            selectedLon = c[1];
+        });
+    }
+
+    map.setCenter(coords, Math.max(map.getZoom(), 14));
+    reverseGeo(coords);
+}
+
+function reverseGeo(coords) {
+    var addrEl = document.getElementById('addr');
+    var hintEl = document.getElementById('hint');
+    addrEl.textContent = 'Определяю адрес...';
+
+    ymaps.geocode(coords, { results: 1 }).then(function(res) {
+        var obj = res.geoObjects.get(0);
+        selectedAddress = obj ? obj.getAddressLine() : coords[0].toFixed(6) + ', ' + coords[1].toFixed(6);
+        addrEl.textContent = selectedAddress;
+        hintEl.textContent = 'Нажмите кнопку ниже для подтверждения';
+
+        // Показать MainButton
+        tg.MainButton.setText('Выбрать это место');
+        tg.MainButton.show();
+        tg.MainButton.onClick(sendResult);
+    }).catch(function() {
+        selectedAddress = coords[0].toFixed(6) + ', ' + coords[1].toFixed(6);
+        addrEl.textContent = selectedAddress;
+        tg.MainButton.setText('Выбрать это место');
+        tg.MainButton.show();
+        tg.MainButton.onClick(sendResult);
+    });
+}
+
+function sendResult() {
+    var data = JSON.stringify({
+        address: selectedAddress,
+        lat: selectedLat,
+        lon: selectedLon
+    });
+    tg.sendData(data);
+}
+</script>
+</body>
+</html>

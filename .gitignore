@@ -1,0 +1,34 @@
+# Секреты
+bot_token.txt
+bot_token.txt.txt
+bot_token*
+
+# Загрузки пользователей
+uploads/
+
+# Бэкапы
+backups/
+*.backup
+*.bak
+
+# Дампы БД (могут содержать персональные данные)
+*.sql
+
+# Логи
+*.log
+logs/
+
+# IDE / ОС
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Временные файлы
+*.tmp
+*.swp
+*~
+
+# Claude Code настройки (локальные, с путями dev-машины)
+.claude/
