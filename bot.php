@@ -18,7 +18,7 @@ define('DB_PASS', '');
 define('SITE_URL', 'http://localhost/fsb');
 // URL страницы выбора на карте (HTTPS обязателен для Telegram WebApp!)
 // Разместите map_picker.html на GitHub Pages или любом HTTPS-хостинге
-define('MAP_PICKER_URL', 'https://YOUR-USERNAME.github.io/fsb/map_picker.html');
+define('MAP_PICKER_URL', 'https://yafoggy2023.github.io/open-signal/map_picker.html');
 
 // ── ПОДКЛЮЧЕНИЕ К БД ──────────────────────────────────
 try {
