@@ -18,15 +18,20 @@ echo "Long polling запущен...\n";
 echo "Нажмите Ctrl+C для остановки\n\n";
 
 $offset = 0;
+$consecutiveFails = 0; // счётчик подряд идущих сетевых сбоев (для затихания в лог)
 
 while (true) {
+    // Long-poll: Telegram держит соединение до 25 сек, ждём ответа до 40 сек.
+    // Буфер 15 сек защищает от срабатывания cURL-таймаута раньше, чем ответит сервер.
     $result = tg('getUpdates', [
         'offset'  => $offset,
-        'timeout' => 30,
+        'timeout' => 25,
         'allowed_updates' => ['message', 'callback_query']
-    ], 35);
+    ], 40);
 
+    // ── Случай 1: успех, есть обновления ─────────────────
     if (!empty($result['ok']) && !empty($result['result'])) {
+        $consecutiveFails = 0;
         foreach ($result['result'] as $update) {
             $offset = $update['update_id'] + 1;
 
@@ -48,10 +53,33 @@ while (true) {
                 echo date('H:i:s') . " ERROR: " . $e->getMessage() . "\n";
             }
         }
+        continue;
     }
 
-    if (empty($result['ok'])) {
-        echo date('H:i:s') . " API error, retry in 5s...\n";
+    // ── Случай 2: успех, но нет обновлений (нормальный idle) ──
+    if (!empty($result['ok'])) {
+        $consecutiveFails = 0;
+        continue; // сразу новый запрос, никакого sleep'а
+    }
+
+    // ── Случай 3: реальная ошибка Telegram API (ok:false с кодом) ──
+    if (is_array($result) && isset($result['error_code'])) {
+        $consecutiveFails = 0;
+        echo date('H:i:s') . " API error [" . $result['error_code'] . "]: "
+            . ($result['description'] ?? '') . " — retry in 5s\n";
         sleep(5);
+        continue;
+    }
+
+    // ── Случай 4: cURL-таймаут или сеть (tg() вернула null) ──
+    // Сообщения не теряются — offset не сдвигается, Telegram отдаст их в следующем getUpdates.
+    // Логируем только если сбоев подряд много (реальные проблемы с сетью),
+    // одиночные таймауты глотаем молча.
+    $consecutiveFails++;
+    if ($consecutiveFails >= 3) {
+        echo date('H:i:s') . " Network issue ({$consecutiveFails} consecutive timeouts), retry in 5s\n";
+        sleep(5);
+    } else {
+        sleep(1);
     }
 }
