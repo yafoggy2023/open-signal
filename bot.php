@@ -363,7 +363,9 @@ if (isset($update['callback_query'])) {
             } else {
                 $d['is_anon'] = 0;
                 setState($chatId, 'await_contact_name', $d);
-                editMsg($chatId, $msgId, "👤 <b>Введите ФИО:</b>\n\nНапример: Иванов Иван Иванович\n\n<i>Указывая данные, вы даёте согласие на их обработку в рамках платформы «Открытый сигнал».</i>", null);
+                editMsg($chatId, $msgId, "👤 Вы выбрали: <b>указать данные</b>", null);
+                send($chatId, "👤 <b>Введите ФИО:</b>\n\nНапример: Иванов Иван Иванович\n\n<i>Указывая данные, вы даёте согласие на их обработку в рамках платформы «Открытый сигнал».</i>",
+                    replyKb([[['text' => '❌ Отмена']]], true, false));
             }
         }
         return;
@@ -776,6 +778,7 @@ if ($st['state'] === 'await_event_date') {
 
 // ── Контактные данные (не анонимно) ───────────────────
 if ($st['state'] === 'await_contact_name') {
+    if ($text === '⏭ Пропустить') { send($chatId, "⚠ ФИО обязательно при указании данных. Введите ФИО (минимум 3 символа)."); return; }
     if (mb_strlen($text) < 3) { send($chatId, "⚠ Введите ФИО (минимум 3 символа)."); return; }
     $d = $st['data'];
     $d['contact_name'] = $text;
