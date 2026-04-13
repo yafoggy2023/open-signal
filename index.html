@@ -70,7 +70,7 @@ input:checked+.toggle::after{left:21px;background:var(--gold);}
 .form-card-opt{margin-left:auto;font-family:monospace;font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;}
 .form-card-body{padding:18px;}
 .contact-slide{overflow:hidden;transition:max-height 0.4s ease,opacity 0.3s;max-height:0;opacity:0;}
-.contact-slide.open{max-height:500px;opacity:1;}
+.contact-slide.open{max-height:800px;opacity:1;}
 .frow{display:grid;gap:12px;margin-bottom:12px;}
 .frow.c2{grid-template-columns:1fr 1fr;}
 .frow.c3{grid-template-columns:1fr 1fr 1fr;}
@@ -489,6 +489,7 @@ body.light .modal { box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
   .submit-row { flex-direction: column; align-items: stretch; }
   .submit-btn { min-width: 0; }
   .pub-container { padding-bottom: 160px; }
+  .contact-slide.open { max-height: 1200px; }
 
   /* Admin topbar */
   .adm-topbar {
@@ -518,6 +519,11 @@ body.light .modal { box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
   .adm-avatar { width: 28px; height: 28px; font-size: 11px; }
   .adm-logout { padding: 4px 8px; font-size: 8px; }
   .sa-indicator { font-size: 8px; padding: 1px 6px; }
+
+  /* Admin body — allow scroll on mobile */
+  .adm-body { overflow-y: auto; overflow-x: hidden; }
+  .adm-panel { overflow: visible; overflow-y: auto; }
+  #adminScreen { overflow: auto; }
 
   /* Dashboard */
   .dash-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -557,11 +563,13 @@ body.light .modal { box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
     display: grid;
     grid-template-columns: 1fr 1fr;
   }
-  .search-wrap { min-width: 0; max-width: none; grid-column: 1 / -1; }
+  .search-wrap { min-width: 0; max-width: none; grid-column: 1 / -1; order: -1; }
   .filter-select { font-size: 9px; padding: 6px 22px 6px 6px; min-width: 0; }
   .list-count { display: none; }
   .date-filter { font-size: 9px; }
   .date-filter input { font-size: 10px; padding: 4px; width: 100%; }
+  .date-filter-row { display: flex; gap: 6px; grid-column: 1 / -1; }
+  .date-filter-row .date-filter { flex: 1; }
   #btnExportCSV { font-size: 9px; padding: 5px 8px; grid-column: 1 / -1; }
 
   /* Table — hide: Категория(3), Ответственный(6), Дедлайн(7), Анон(8), Дата(10) */
@@ -912,8 +920,10 @@ body.light .modal { box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
           <select class="filter-select" id="filterPri"><option value="">Срочность</option><option value="critical">🔴 Критичная</option><option value="high">🟠 Срочная</option><option value="medium">🟡 Важная</option><option value="low">🟢 Обычная</option></select>
           <select class="filter-select" id="filterAssigned"><option value="">Все ответственные</option></select>
           <select class="filter-select" id="filterSource"><option value="">Все источники</option><option value="site">🌐 Сайт</option><option value="telegram">📱 Telegram</option></select>
-          <label class="date-filter" title="Период: с этой даты"><span>С</span><input type="date" id="filterDateFrom"></label>
-          <label class="date-filter" title="Период: по эту дату"><span>По</span><input type="date" id="filterDateTo"></label>
+          <div class="date-filter-row">
+            <label class="date-filter" title="Период: с этой даты"><span>С</span><input type="date" id="filterDateFrom"></label>
+            <label class="date-filter" title="Период: по эту дату"><span>По</span><input type="date" id="filterDateTo"></label>
+          </div>
           <button class="ua-btn" id="btnExportCSV" style="white-space:nowrap">📊 Excel</button>
           <span class="list-count" id="listCount">0 сообщений</span>
         </div>

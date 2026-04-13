@@ -43,7 +43,9 @@ function tg($method, $params = [], $timeout = 10) {
         CURLOPT_POSTFIELDS => json_encode($params),
         CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => $timeout
+        CURLOPT_TIMEOUT => $timeout,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_DNS_CACHE_TIMEOUT => 300,
     ]);
     $r = curl_exec($ch);
     curl_close($ch);
@@ -303,9 +305,17 @@ if (isset($update['callback_query'])) {
                 $d['contact_telegram'] = '';
                 editMsg($chatId, $msgId, "⏭ Telegram пропущен.", null);
             }
-            setState($chatId, 'await_message', $d);
-            $cancelKb = replyKb([[['text' => '❌ Отмена']]], true, false);
-            send($chatId, "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.", $cancelKb);
+            // Проверяем, что хотя бы один способ связи указан
+            $hasAny = !empty($d['contact_phone']) || !empty($d['contact_email']) || !empty($d['contact_telegram']);
+            if (!$hasAny) {
+                send($chatId, "⚠ Вы пропустили все контакты. Укажите хотя бы один способ связи (телефон, email или Telegram), иначе мы не сможем с вами связаться.\n\n📞 <b>Введите номер телефона:</b>",
+                    replyKb([[['text' => '❌ Отмена']]], true, false));
+                setState($chatId, 'await_contact_phone', $d);
+            } else {
+                setState($chatId, 'await_message', $d);
+                $cancelKb = replyKb([[['text' => '❌ Отмена']]], true, false);
+                send($chatId, "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.", $cancelKb);
+            }
         }
         return;
     }
@@ -727,7 +737,7 @@ if ($st['state'] === 'await_location') {
     }
     setState($chatId, 'await_event_date', $d);
     send($chatId, "📅 <b>Дата события</b>\n\nКогда произошло? Укажите дату.\nНапример: 05.03.2026 или март 2026\n\nВведите текстом или нажмите «Пропустить».",
-        replyKb([[['text' => '⏭ Пропустить'], ['text' => '❌ Отмена']]], true, false));
+        replyKb([[['text' => '📅 Сегодня'], ['text' => '⏭ Пропустить'], ['text' => '❌ Отмена']]], true, false));
     return;
 }
 
@@ -735,6 +745,9 @@ if ($st['state'] === 'await_event_date') {
     $d = $st['data'];
     if ($text === '⏭ Пропустить') {
         $d['event_date'] = null;
+    } elseif ($text === '📅 Сегодня') {
+        $d['event_date'] = date('Y-m-d');
+        $d['event_date_raw'] = date('d.m.Y');
     } else {
         // Пытаемся распарсить дату
         $parsed = null;
@@ -831,6 +844,16 @@ if ($st['state'] === 'await_contact_telegram') {
         $d['contact_telegram'] = '';
     } else {
         $d['contact_telegram'] = $text;
+    }
+    // Проверяем, что хотя бы один способ связи указан
+    $hasPhone = !empty($d['contact_phone']);
+    $hasEmail = !empty($d['contact_email']);
+    $hasTg    = !empty($d['contact_telegram']);
+    if (!$hasPhone && !$hasEmail && !$hasTg) {
+        send($chatId, "⚠ Вы пропустили все контакты. Укажите хотя бы один способ связи (телефон, email или Telegram), иначе мы не сможем с вами связаться.\n\n📞 <b>Введите номер телефона:</b>",
+            replyKb([[['text' => '❌ Отмена']]], true, false));
+        setState($chatId, 'await_contact_phone', $d);
+        return;
     }
     setState($chatId, 'await_message', $d);
     $cancelKb = replyKb([[['text' => '❌ Отмена']]], true, false);
