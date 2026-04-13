@@ -370,6 +370,8 @@ mark{background:rgba(201,168,76,0.3);color:var(--text);border-radius:2px;padding
 .email-addr{font-family:monospace;font-size:12px;color:var(--gold);background:var(--gold-dim);border:1px solid rgba(201,168,76,0.2);padding:6px 12px;border-radius:var(--r);margin:4px 0;}
 
 /* ─── TOAST & SCROLLBAR ─────────────────────────── */
+.date-filter-row{display:flex;gap:8px;align-items:center;}
+.date-filter-row .date-filter{flex:1;}
 .date-filter{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;font-family:monospace;font-size:11px;color:var(--text-dim);}
 .date-filter span{text-transform:uppercase;letter-spacing:1px;color:var(--gold);font-size:10px;}
 .date-filter input{background:transparent;border:none;color:var(--text);font-family:monospace;font-size:11px;outline:none;color-scheme:dark;}
@@ -568,8 +570,7 @@ body.light .modal { box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
   .list-count { display: none; }
   .date-filter { font-size: 9px; }
   .date-filter input { font-size: 10px; padding: 4px; width: 100%; }
-  .date-filter-row { display: flex; gap: 6px; grid-column: 1 / -1; }
-  .date-filter-row .date-filter { flex: 1; }
+  .date-filter-row { grid-column: 1 / -1; }
   #btnExportCSV { font-size: 9px; padding: 5px 8px; grid-column: 1 / -1; }
 
   /* Table — hide: Категория(3), Ответственный(6), Дедлайн(7), Анон(8), Дата(10) */
@@ -594,10 +595,12 @@ body.light .modal { box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
   #saStatGrid { grid-template-columns: 1fr 1fr !important; }
   .user-stats-grid { grid-template-columns: 1fr !important; }
   /* Users table — hide: Telegram(4), Действий(5), Закрыто(6), Отклонено(7), Активность(8), Статус(9) */
+  .sa-card-body { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .user-table th:nth-child(n+4):nth-child(-n+9),
   .user-table td:nth-child(n+4):nth-child(-n+9) { display: none; }
   .user-table td { padding: 6px 6px; font-size: 11px; }
   .user-table thead th { font-size: 9px; padding: 6px; }
+  .user-table td:last-child { white-space: nowrap; }
   .ua-btn { font-size: 9px; padding: 3px 6px; }
   .add-btn { font-size: 9px; padding: 4px 8px; }
 
