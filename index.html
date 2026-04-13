@@ -131,7 +131,7 @@ input:checked+.toggle::after{left:21px;background:var(--gold);}
 .ok-back:hover{border-color:var(--text);color:var(--text);}
 
 /* ─── ADMIN ──────────────────────────────────────── */
-#adminScreen{flex-direction:column;height:100vh;overflow:hidden;}
+#adminScreen{flex-direction:column;height:100vh;height:100dvh;overflow:hidden;}
 .adm-topbar{height:56px;flex-shrink:0;background:var(--surface);border-bottom:2px solid var(--red);display:flex;align-items:center;padding:0 20px;gap:16px;}
 .adm-logo{display:flex;align-items:center;gap:10px;flex-shrink:0;}
 .adm-emblem{width:30px;height:30px;border:1px solid var(--red);border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--red-dim);}
@@ -521,11 +521,6 @@ body.light .modal { box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
   .adm-avatar { width: 28px; height: 28px; font-size: 11px; }
   .adm-logout { padding: 4px 8px; font-size: 8px; }
   .sa-indicator { font-size: 8px; padding: 1px 6px; }
-
-  /* Admin body — allow scroll on mobile */
-  .adm-body { overflow-y: auto; overflow-x: hidden; }
-  .adm-panel { overflow: visible; overflow-y: auto; }
-  #adminScreen { overflow: auto; }
 
   /* Dashboard */
   .dash-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
