@@ -146,6 +146,33 @@ function log_field_change($pdo, $appeal_db_id, $field, $old, $new) {
 }
 
 // ── ВОДЯНОЙ ЗНАК на изображения ──────────────────
+/**
+ * Ищем TTF-шрифт с поддержкой кириллицы, кросс-платформенно.
+ * На Linux VPS обычно DejaVu (пакет fonts-dejavu-core), на Windows — Arial/Tahoma.
+ * Возвращает путь или null, если ни один не найден.
+ */
+function _find_cyrillic_ttf() {
+    static $cached = false;
+    if ($cached !== false) return $cached;
+    $candidates = [
+        // Linux
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+        '/usr/share/fonts/TTF/DejaVuSans.ttf',
+        // Windows
+        'C:/Windows/Fonts/arialbd.ttf',
+        'C:/Windows/Fonts/arial.ttf',
+        'C:/Windows/Fonts/tahoma.ttf',
+        'C:/Windows/Fonts/verdana.ttf',
+    ];
+    foreach ($candidates as $c) {
+        if (file_exists($c)) return $cached = $c;
+    }
+    return $cached = null;
+}
+
 function apply_image_watermark($srcPath, $text) {
     if (!function_exists('imagecreatefromstring')) return false;
     $data = @file_get_contents($srcPath);
@@ -155,30 +182,66 @@ function apply_image_watermark($srcPath, $text) {
 
     $w = imagesx($img); $h = imagesy($img);
 
+    $font = _find_cyrillic_ttf();
+    $hasTtf = $font && function_exists('imagettftext');
+
     // Полупрозрачный белый текст с тенью
     $white = imagecolorallocatealpha($img, 255, 255, 255, 60);
     $black = imagecolorallocatealpha($img, 0, 0, 0, 90);
 
-    $fontSize = max(2, min(5, intval($w / 200)));
-    $lines = [
-        '⚠ КОНФИДЕНЦИАЛЬНО',
-        $text,
-        date('d.m.Y H:i'),
-    ];
-    $y = $h - 60;
-    foreach ($lines as $line) {
-        // тень
-        imagestring($img, $fontSize, 12, $y + 1, $line, $black);
-        imagestring($img, $fontSize, 11, $y, $line, $white);
-        $y += 16;
-    }
+    if ($hasTtf) {
+        // ── TTF-режим: поддержка UTF-8 (кириллица, символы ⚠ ·) ─────
+        $pt = max(9, min(18, intval($w / 80)));
+        $lineH = intval($pt * 1.6);
 
-    // Диагональный штамп по центру (через imagestring, без TTF)
-    $stamp = 'ФСБ · ' . $text;
-    $sx = max(10, intval($w / 2 - strlen($stamp) * 4));
-    $sy = intval($h / 2);
-    $stampColor = imagecolorallocatealpha($img, 192, 57, 43, 95);
-    imagestring($img, 5, $sx, $sy, $stamp, $stampColor);
+        $lines = [
+            '⚠ КОНФИДЕНЦИАЛЬНО',
+            $text,
+            date('d.m.Y H:i'),
+        ];
+        // Стартовая baseline-координата первой строки (снизу вверх)
+        $y = $h - 12 - $lineH * (count($lines) - 1);
+        foreach ($lines as $line) {
+            // тень + основной
+            imagettftext($img, $pt, 0, 13, $y + 1, $black, $font, $line);
+            imagettftext($img, $pt, 0, 12, $y,     $white, $font, $line);
+            $y += $lineH;
+        }
+
+        // Диагональный штамп по центру
+        $ptBig = max(14, min(48, intval($w / 18)));
+        $stamp = 'ФСБ · ' . $text;
+        $stampColor = imagecolorallocatealpha($img, 192, 57, 43, 95);
+        $angle = 20; // против часовой
+        $bbox = imagettfbbox($ptBig, $angle, $font, $stamp);
+        $tw = max(abs($bbox[2] - $bbox[0]), abs($bbox[4] - $bbox[6]));
+        $th = max(abs($bbox[1] - $bbox[7]), abs($bbox[3] - $bbox[5]));
+        $sx = intval(($w - $tw) / 2);
+        $sy = intval(($h + $th) / 2);
+        imagettftext($img, $ptBig, $angle, $sx, $sy, $stampColor, $font, $stamp);
+    } else {
+        // ── Fallback: нет TTF-шрифта, используем imagestring (только ASCII) ──
+        // Транслитерируем кириллицу, чтобы не было мусора.
+        $asciiText = function_exists('translit_simple') ? translit_simple($text) : $text;
+        $asciiText = preg_replace('/[^\x20-\x7E]/', '?', $asciiText);
+        $fontSize = max(2, min(5, intval($w / 200)));
+        $lines = [
+            'CONFIDENTIAL',
+            $asciiText,
+            date('d.m.Y H:i'),
+        ];
+        $y = $h - 60;
+        foreach ($lines as $line) {
+            imagestring($img, $fontSize, 12, $y + 1, $line, $black);
+            imagestring($img, $fontSize, 11, $y, $line, $white);
+            $y += 16;
+        }
+        $stamp = 'FSB * ' . $asciiText;
+        $sx = max(10, intval($w / 2 - strlen($stamp) * 4));
+        $sy = intval($h / 2);
+        $stampColor = imagecolorallocatealpha($img, 192, 57, 43, 95);
+        imagestring($img, 5, $sx, $sy, $stamp, $stampColor);
+    }
 
     ob_start();
     $mime = mime_content_type($srcPath);
