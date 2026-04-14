@@ -1192,8 +1192,12 @@ if (!defined('BOT_POLL_MODE')) {
 
     $input = file_get_contents('php://input');
     $update = json_decode($input, true);
+    $__dbg = __DIR__.'/bot_debug.log';
+    $__kind = isset($update['callback_query']) ? 'cb:'.($update['callback_query']['data']??'?')
+           : (isset($update['message']) ? 'msg:'.mb_substr($update['message']['text']??'?',0,20) : 'other');
+    file_put_contents($__dbg, date('H:i:s')." IN $__kind\n", FILE_APPEND);
     if ($update) {
-        try { processUpdate($update); }
-        catch (Exception $e) { error_log('Bot webhook error: ' . $e->getMessage()); }
+        try { processUpdate($update); file_put_contents($__dbg, date('H:i:s')." OK\n", FILE_APPEND); }
+        catch (Exception $e) { file_put_contents($__dbg, date('H:i:s')." EX: ".$e->getMessage()."\n", FILE_APPEND); }
     }
 }
