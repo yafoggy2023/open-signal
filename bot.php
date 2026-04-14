@@ -353,6 +353,9 @@ if (isset($update['callback_query'])) {
     $data = $cb['data'];
     $user = ensureBotUser($chatId, $cb['from']['username'] ?? null, $cb['from']['language_code'] ?? null);
 
+    $__st = getState($chatId);
+    error_log("[BOT-CB] chat=$chatId data=$data state=".($__st['state']??'null'));
+
     tg('answerCallbackQuery', ['callback_query_id' => $cb['id']]);
 
     // Бан-лист
