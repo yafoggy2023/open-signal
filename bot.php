@@ -354,7 +354,7 @@ if (isset($update['callback_query'])) {
     $user = ensureBotUser($chatId, $cb['from']['username'] ?? null, $cb['from']['language_code'] ?? null);
 
     $__st = getState($chatId);
-    error_log("[BOT-CB] chat=$chatId data=$data state=".($__st['state']??'null'));
+    @file_put_contents(__DIR__.'/bot_debug.log', date('H:i:s')." [CB] chat=$chatId data=$data state=".($__st['state']??'null')."\n", FILE_APPEND);
 
     tg('answerCallbackQuery', ['callback_query_id' => $cb['id']]);
 
