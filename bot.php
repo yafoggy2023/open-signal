@@ -1171,7 +1171,26 @@ send($chatId, "❓ Не понимаю. Используйте кнопки ни
 
 // ── WEBHOOK MODE (когда вызывается напрямую) ──────────
 if (!defined('BOT_POLL_MODE')) {
+    // Секрет читается из bot_webhook_secret.txt (не коммитится)
+    $__secretFile = __DIR__ . '/bot_webhook_secret.txt';
+    $expectedSecret = file_exists($__secretFile) ? trim(file_get_contents($__secretFile)) : '';
+    $gotSecret = $_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] ?? '';
+    if ($expectedSecret === '' || !hash_equals($expectedSecret, $gotSecret)) {
+        http_response_code(403);
+        exit('forbidden');
+    }
+
+    // Мгновенно отвечаем Telegram 200 OK, чтобы не ретраило
+    http_response_code(200);
+    header('Content-Type: text/plain');
+    header('Content-Length: 2');
+    echo 'ok';
+    if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+
     $input = file_get_contents('php://input');
     $update = json_decode($input, true);
-    if ($update) processUpdate($update);
+    if ($update) {
+        try { processUpdate($update); }
+        catch (Exception $e) { error_log('Bot webhook error: ' . $e->getMessage()); }
+    }
 }
