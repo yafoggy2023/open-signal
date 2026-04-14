@@ -18,6 +18,7 @@ if (!file_exists($__config)) {
     die("config.local.php не найден. Скопируйте config.local.example.php в config.local.php и впишите реальные значения.\n");
 }
 require_once $__config;
+require_once __DIR__ . '/lib_security.php';
 
 define('SITE_URL', 'http://localhost/fsb');
 // URL страницы выбора на карте (HTTPS обязателен для Telegram WebApp!)
@@ -113,6 +114,64 @@ function clearState($chatId) {
     $pdo->prepare("DELETE FROM bot_states WHERE chat_id = ?")->execute([$chatId]);
 }
 
+// ── ПРОВЕРКИ БЕЗОПАСНОСТИ ──────────────────────────────
+function isBotBanned($chatId) {
+    global $pdo;
+    $s = $pdo->prepare("SELECT banned FROM bot_users WHERE chat_id = ?");
+    $s->execute([$chatId]);
+    $r = $s->fetchColumn();
+    return (int)$r === 1;
+}
+
+function checkBotRateLimit($chatId) {
+    global $pdo;
+    // Чистим старые записи
+    $pdo->prepare("DELETE FROM bot_submit_attempts WHERE attempt_time < DATE_SUB(NOW(), INTERVAL 24 HOUR)")->execute();
+    // За последний час — не больше 3
+    $s = $pdo->prepare("SELECT COUNT(*) FROM bot_submit_attempts WHERE chat_id = ? AND attempt_time > DATE_SUB(NOW(), INTERVAL 1 HOUR)");
+    $s->execute([$chatId]);
+    if ((int)$s->fetchColumn() >= 3) return 'hour';
+    // За сутки — не больше 10
+    $s = $pdo->prepare("SELECT COUNT(*) FROM bot_submit_attempts WHERE chat_id = ? AND attempt_time > DATE_SUB(NOW(), INTERVAL 24 HOUR)");
+    $s->execute([$chatId]);
+    if ((int)$s->fetchColumn() >= 10) return 'day';
+    return false;
+}
+
+function recordBotSubmit($chatId) {
+    global $pdo;
+    $pdo->prepare("INSERT INTO bot_submit_attempts (chat_id, attempt_time) VALUES (?, NOW())")->execute([$chatId]);
+}
+
+function checkDuplicate($chatId, $subject, $message) {
+    global $pdo;
+    $s = $pdo->prepare("SELECT subject, message FROM appeals WHERE sender_chat_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR) ORDER BY created_at DESC LIMIT 5");
+    $s->execute([$chatId]);
+    foreach ($s->fetchAll() as $r) {
+        similar_text(mb_strtolower($subject), mb_strtolower($r['subject']), $subjPct);
+        similar_text(mb_strtolower(mb_substr($message, 0, 300)), mb_strtolower(mb_substr($r['message'], 0, 300)), $msgPct);
+        if ($subjPct > 80 && $msgPct > 70) return true;
+    }
+    return false;
+}
+
+function validatePhone($phone) {
+    $clean = preg_replace('/[\s\-\(\)]/', '', $phone);
+    return (bool)preg_match('/^(\+?\d{10,15})$/', $clean);
+}
+
+function validateEmail($email) {
+    return (bool)filter_var($email, FILTER_VALIDATE_EMAIL);
+}
+
+function checkUniqueWords($text) {
+    $words = preg_split('/\s+/u', mb_strtolower($text));
+    $words = array_filter($words, function($w) { return mb_strlen($w) > 2; });
+    if (count($words) < 5) return true; // слишком короткий — пропускаем
+    $unique = count(array_unique($words));
+    return ($unique / count($words)) > 0.2; // минимум 20% уникальных слов
+}
+
 // ── ПОЛЬЗОВАТЕЛЬ БОТА ──────────────────────────────────
 function getBotUser($chatId) {
     global $pdo;
@@ -121,15 +180,20 @@ function getBotUser($chatId) {
     return $s->fetch();
 }
 
-function ensureBotUser($chatId, $username = null) {
+function ensureBotUser($chatId, $username = null, $langCode = null) {
     global $pdo;
     $u = getBotUser($chatId);
     if (!$u) {
-        $pdo->prepare("INSERT INTO bot_users (chat_id, username) VALUES (?, ?)")->execute([$chatId, $username]);
+        $pdo->prepare("INSERT INTO bot_users (chat_id, username, language_code) VALUES (?, ?, ?)")->execute([$chatId, $username, $langCode]);
         return getBotUser($chatId);
     }
-    if ($username && $u['username'] !== $username) {
-        $pdo->prepare("UPDATE bot_users SET username = ? WHERE chat_id = ?")->execute([$username, $chatId]);
+    $updates = [];
+    $params = [];
+    if ($username && $u['username'] !== $username) { $updates[] = 'username = ?'; $params[] = $username; }
+    if ($langCode && ($u['language_code'] ?? '') !== $langCode) { $updates[] = 'language_code = ?'; $params[] = $langCode; }
+    if ($updates) {
+        $params[] = $chatId;
+        $pdo->prepare("UPDATE bot_users SET " . implode(', ', $updates) . " WHERE chat_id = ?")->execute($params);
     }
     return $u;
 }
@@ -186,9 +250,22 @@ function downloadTgFile($fileId, $fileName, $appealDbId) {
 
     file_put_contents($savePath, $content);
 
+    // ClamAV-сканирование
+    $avStatus = 'clean';
+    $avDetail = null;
+    if (function_exists('clamav_scan')) {
+        $scan = clamav_scan($savePath);
+        $avStatus = $scan['status'];
+        $avDetail = $scan['detail'] ?? null;
+        if ($avStatus === 'infected') {
+            @unlink($savePath);
+            return 'infected';
+        }
+    }
+
     // Сохраняем в БД
-    $pdo->prepare("INSERT INTO appeal_files (appeal_db_id, filename, filesize, uploaded_at, av_status) VALUES (?, ?, ?, NOW(), 'clean')")
-        ->execute([$appealDbId, $saveName, $fileSize]);
+    $pdo->prepare("INSERT INTO appeal_files (appeal_db_id, filename, filesize, uploaded_at, av_status, av_detail) VALUES (?, ?, ?, NOW(), ?, ?)")
+        ->execute([$appealDbId, $saveName, $fileSize, $avStatus, $avDetail]);
 
     return true;
 }
@@ -274,9 +351,12 @@ if (isset($update['callback_query'])) {
     $chatId = $cb['message']['chat']['id'];
     $msgId = $cb['message']['message_id'];
     $data = $cb['data'];
-    $user = ensureBotUser($chatId, $cb['from']['username'] ?? null);
+    $user = ensureBotUser($chatId, $cb['from']['username'] ?? null, $cb['from']['language_code'] ?? null);
 
     tg('answerCallbackQuery', ['callback_query_id' => $cb['id']]);
+
+    // Бан-лист
+    if (isBotBanned($chatId)) { return; }
 
     // Согласие на обработку
     if ($data === 'consent_yes' || $data === 'consent_no') {
@@ -403,25 +483,60 @@ if (isset($update['callback_query'])) {
             }
 
             $msgText = $d['message_text'] ?? '';
-            $stmt = $pdo->prepare("INSERT INTO appeals (appeal_id, subject, category, priority, organ, location, event_date, status, is_anon, contact_json, message, sender_chat_id, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, 'telegram', NOW())");
-            $stmt->execute([$appealId, $d['subject'], $d['category'], $d['priority'], $d['organ'] ?? null, $d['location'] ?? null, $d['event_date'] ?? null, $isAnon, $contactJson, $msgText, $chatId]);
+
+            // ── Проверки перед сохранением ────────────────
+            // Дубликат
+            if (checkDuplicate($chatId, $d['subject'], $msgText)) {
+                clearState($chatId);
+                $menu = $user['role'] === 'operator' ? operatorMenu() : senderMenu();
+                editMsg($chatId, $msgId, "⚠ <b>Похожее сообщение уже отправлено</b>\n\nВы недавно отправляли сообщение с похожей темой и текстом. Повторная отправка отклонена.", null);
+                send($chatId, "📋 Главное меню:", $menu);
+                return;
+            }
+            // Уникальность слов
+            if (!checkUniqueWords($msgText)) {
+                clearState($chatId);
+                $menu = $user['role'] === 'operator' ? operatorMenu() : senderMenu();
+                editMsg($chatId, $msgId, "⚠ <b>Текст содержит слишком много повторов</b>\n\nПожалуйста, опишите ситуацию своими словами.", null);
+                send($chatId, "📋 Главное меню:", $menu);
+                return;
+            }
+            // Спам-анализ
+            $spam = spam_analyze($d['subject'], $msgText);
+            $spamScore = $spam['score'];
+            $spamFlags = !empty($spam['flags']) ? implode('; ', $spam['flags']) : null;
+            if ($spamScore >= 60) {
+                clearState($chatId);
+                $menu = $user['role'] === 'operator' ? operatorMenu() : senderMenu();
+                editMsg($chatId, $msgId, "⚠ <b>Сообщение отклонено системой защиты</b>\n\nТекст содержит признаки спама. Если это ошибка, попробуйте переформулировать.", null);
+                send($chatId, "📋 Главное меню:", $menu);
+                return;
+            }
+            // Rate-limit — записываем попытку
+            recordBotSubmit($chatId);
+
+            $stmt = $pdo->prepare("INSERT INTO appeals (appeal_id, subject, category, priority, organ, location, event_date, status, is_anon, contact_json, message, sender_chat_id, source, spam_score, spam_flags, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, 'telegram', ?, ?, NOW())");
+            $stmt->execute([$appealId, $d['subject'], $d['category'], $d['priority'], $d['organ'] ?? null, $d['location'] ?? null, $d['event_date'] ?? null, $isAnon, $contactJson, $msgText, $chatId, $spamScore, $spamFlags]);
             $appealDbId = $pdo->lastInsertId();
 
             // Автосвязка повторных обращений
             $linkedCount = autoLinkAppeals($appealId, $contactJson, $chatId);
 
-            // Скачиваем и сохраняем файлы
+            // Скачиваем и сохраняем файлы (с ClamAV-сканированием)
             $files = $d['files'] ?? [];
             $savedFiles = 0;
+            $infectedFiles = 0;
             foreach ($files as $f) {
                 $saved = downloadTgFile($f['file_id'], $f['file_name'], $appealDbId);
-                if ($saved) $savedFiles++;
+                if ($saved === 'infected') { $infectedFiles++; }
+                elseif ($saved) { $savedFiles++; }
             }
 
             clearState($chatId);
 
             $contactInfo = $isAnon ? '🔒 Анонимно' : '👤 ' . ($d['contact_name'] ?? '');
             $fileInfo = $savedFiles > 0 ? "\n📎 Файлов: $savedFiles" : '';
+            if ($infectedFiles > 0) $fileInfo .= "\n⚠ Заражённых файлов удалено: $infectedFiles";
             $linkInfo = $linkedCount > 0 ? "\n🔗 Повторное обращение ($linkedCount связ.)" : '';
 
             $menu = $user['role'] === 'operator' ? operatorMenu() : senderMenu();
@@ -579,8 +694,15 @@ $msg = $update['message'];
 $chatId = $msg['chat']['id'];
 $text = trim($msg['text'] ?? '');
 $username = $msg['from']['username'] ?? null;
-$user = ensureBotUser($chatId, $username);
+$langCode = $msg['from']['language_code'] ?? null;
+$user = ensureBotUser($chatId, $username, $langCode);
 $st = getState($chatId);
+
+// Бан-лист
+if (isBotBanned($chatId)) {
+    send($chatId, "🚫 Ваш аккаунт заблокирован на платформе.");
+    return;
+}
 
 // ── КОМАНДЫ ────────────────────────────────────────────
 
@@ -638,6 +760,10 @@ if ($text === '/myid') {
 
 // ── /send — создание сообщения ─────────────────────────
 if ($text === '/send') {
+    // Rate-limit
+    $rl = checkBotRateLimit($chatId);
+    if ($rl === 'hour') { send($chatId, "⚠ Вы отправили слишком много сообщений. Попробуйте через час."); return; }
+    if ($rl === 'day')  { send($chatId, "⚠ Достигнут дневной лимит сообщений. Попробуйте завтра."); return; }
     setState($chatId, 'await_consent');
     send($chatId, "📨 <b>Новое сообщение</b>\n\n"
         . "Перед отправкой ознакомьтесь с условиями:\n\n"
@@ -806,6 +932,10 @@ if ($st['state'] === 'await_contact_phone') {
     if ($text === '⏭ Пропустить' || $text === '-' || $text === '—') {
         $d['contact_phone'] = '';
     } else {
+        if (!validatePhone($text)) {
+            send($chatId, "⚠ Некорректный номер телефона. Введите в формате +7XXXXXXXXXX или нажмите «Пропустить».");
+            return;
+        }
         $d['contact_phone'] = $text;
     }
     setState($chatId, 'await_contact_email', $d);
@@ -819,6 +949,10 @@ if ($st['state'] === 'await_contact_email') {
     if ($text === '⏭ Пропустить' || $text === '-' || $text === '—') {
         $d['contact_email'] = '';
     } else {
+        if (!validateEmail($text)) {
+            send($chatId, "⚠ Некорректный email. Введите в формате example@mail.ru или нажмите «Пропустить».");
+            return;
+        }
         $d['contact_email'] = $text;
     }
     $autoTg = $username ? '@' . $username : '';

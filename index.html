@@ -1446,6 +1446,22 @@ function closeDetail(){
 }
 document.getElementById('btnCloseDetail').addEventListener('click',closeDetail);
 
+function renderBanButton(a){
+    if(a.source!=='telegram'||!a.sender_chat_id)return '';
+    if(!currentUser||currentUser.role!=='super')return '';
+    var banned=parseInt(a.sender_banned)===1;
+    var lbl=banned?'✅ Разблокировать отправителя':'🚫 Заблокировать отправителя';
+    var bg=banned?'var(--green-bright,#27ae60)':'var(--red-bright,#c0392b)';
+    return '<div class="detail-row" style="margin-top:8px"><div class="detail-key">Бан TG</div><div class="detail-val"><button class="ban-toggle-btn" data-chat="'+a.sender_chat_id+'" style="background:'+bg+';color:#fff;border:none;padding:6px 12px;border-radius:4px;font-family:monospace;font-size:11px;cursor:pointer">'+lbl+'</button></div></div>';
+}
+function toggleBan(chatId,a){
+    if(!confirm('Переключить бан для chat_id='+chatId+'?'))return;
+    api('toggle_ban',{chat_id:chatId}).then(function(r){
+        a.sender_banned=r.banned;
+        renderDetailBody(a);
+    }).catch(function(e){alert('Ошибка: '+e.message);});
+}
+
 function renderDetailBody(a){
     var body=document.getElementById('detailBody');
     if(editMode){
@@ -1477,19 +1493,26 @@ function renderDetailBody(a){
         var fio=[ct.last,ct.first,ct.mid].filter(Boolean).join(' ');
         var tgUser=ct.telegram?ct.telegram.replace(/^@/,''):'';
         var tgSender=ct.telegram_sender?ct.telegram_sender.replace(/^@/,''):'';
+        var langHtml=a.sender_language?'<div class="detail-row"><div class="detail-key">Язык TG</div><div class="detail-val mono">'+esc(a.sender_language)+'</div></div>':'';
+        var banHtml=renderBanButton(a);
         contactHtml='<div class="detail-section"><div class="detail-section-head">Заявитель</div><div class="detail-section-body">'+
             (fio?'<div class="detail-row"><div class="detail-key">ФИО</div><div class="detail-val">'+esc(fio)+'</div></div>':'')+
             (ct.email?'<div class="detail-row"><div class="detail-key">Email</div><div class="detail-val mono">'+esc(ct.email)+'</div></div>':'')+
             (ct.phone?'<div class="detail-row"><div class="detail-key">Тел.</div><div class="detail-val mono">'+esc(ct.phone)+'</div></div>':'')+
             (tgUser?'<div class="detail-row"><div class="detail-key">Telegram (указан)</div><div class="detail-val mono"><a href="https://t.me/'+encodeURIComponent(tgUser)+'" target="_blank" rel="noopener" style="color:var(--blue-bright);text-decoration:none">@'+esc(tgUser)+' ↗</a></div></div>':'')+
             (tgSender&&tgSender!==tgUser?'<div class="detail-row"><div class="detail-key">TG отправителя</div><div class="detail-val mono"><a href="https://t.me/'+encodeURIComponent(tgSender)+'" target="_blank" rel="noopener" style="color:#2AABEE;text-decoration:none">@'+esc(tgSender)+' ↗</a> <span style="font-size:9px;color:var(--text-dim)">(авто)</span></div></div>':'')+
+            langHtml+
             (ct.addr?'<div class="detail-row"><div class="detail-key">Адрес</div><div class="detail-val">'+esc(ct.addr)+' <a href="https://yandex.ru/maps/?text='+encodeURIComponent(ct.addr)+'" target="_blank" rel="noopener" style="color:var(--blue-bright);text-decoration:none;font-family:monospace;font-size:10px;margin-left:6px">📍 На карте</a></div></div>':'')+
+            banHtml+
         '</div></div>';
     } else if(a.contact&&a.contact.telegram_sender){
         var tgS=a.contact.telegram_sender.replace(/^@/,'');
+        var langHtml2=a.sender_language?'<div class="detail-row"><div class="detail-key">Язык TG</div><div class="detail-val mono">'+esc(a.sender_language)+'</div></div>':'';
+        var banHtml2=renderBanButton(a);
         contactHtml='<div class="detail-section"><div class="detail-section-head">Заявитель</div><div class="detail-section-body">'+
             '<div style="font-family:monospace;font-size:11px;color:var(--text-dim);margin-bottom:6px">🔒 Анонимное сообщение</div>'+
             '<div class="detail-row"><div class="detail-key">TG отправителя</div><div class="detail-val mono"><a href="https://t.me/'+encodeURIComponent(tgS)+'" target="_blank" rel="noopener" style="color:#2AABEE;text-decoration:none">@'+esc(tgS)+' ↗</a> <span style="font-size:9px;color:var(--text-dim)">(авто)</span></div></div>'+
+            langHtml2+banHtml2+
         '</div></div>';
     } else {
         contactHtml='<div class="detail-section"><div class="detail-section-head">Заявитель</div><div class="detail-section-body"><div style="font-family:monospace;font-size:11px;color:var(--text-dim)">🔒 Анонимное сообщение</div></div></div>';
@@ -1592,6 +1615,10 @@ function renderDetailBody(a){
     // Chat
     document.getElementById('btnSendChat').addEventListener('click',function(){sendComment(a.appeal_id);});
     initMentionAutocomplete(document.getElementById('chatInput'), function(){sendComment(a.appeal_id);});
+    // Ban toggle
+    document.querySelectorAll('.ban-toggle-btn').forEach(function(btn){
+        btn.addEventListener('click',function(){toggleBan(btn.dataset.chat,a);});
+    });
     // History — загрузка сразу
     function fmtHistVal(field,val){
         if(val===null||val===''||val===undefined)return '∅';

@@ -208,15 +208,27 @@ CREATE TABLE IF NOT EXISTS bot_users (
   id INT(11) NOT NULL AUTO_INCREMENT,
   chat_id BIGINT NOT NULL,
   username VARCHAR(64) DEFAULT NULL,
+  language_code VARCHAR(10) DEFAULT NULL,
   role ENUM('sender','operator') NOT NULL DEFAULT 'sender',
   user_id INT(11) DEFAULT NULL,
   notify TINYINT(1) NOT NULL DEFAULT 1,
+  banned TINYINT(1) NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY chat_id (chat_id),
   KEY role (role),
   KEY user_id (user_id),
   CONSTRAINT bot_users_ibfk_1 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── TELEGRAM-БОТ: rate-limit отправок ──────────────────
+CREATE TABLE IF NOT EXISTS bot_submit_attempts (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  chat_id BIGINT NOT NULL,
+  attempt_time DATETIME NOT NULL,
+  PRIMARY KEY (id),
+  KEY chat_id (chat_id),
+  KEY attempt_time (attempt_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── TELEGRAM-БОТ: состояния диалогов ───────────────────

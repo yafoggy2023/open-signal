@@ -470,6 +470,14 @@ switch ($action) {
         $ap['contact'] = $ap['contact_json'] ? json_decode($ap['contact_json'], true) : null;
         unset($ap['contact_json']);
         $ap['is_anon'] = (bool)$ap['is_anon'];
+        // Для telegram-заявок: статус бана отправителя
+        if ($ap['sender_chat_id']) {
+            $bs = $pdo->prepare("SELECT banned, language_code FROM bot_users WHERE chat_id = ?");
+            $bs->execute([$ap['sender_chat_id']]);
+            $bu = $bs->fetch();
+            $ap['sender_banned'] = $bu ? (int)$bu['banned'] : 0;
+            $ap['sender_language'] = $bu ? ($bu['language_code'] ?? '') : '';
+        }
         json_ok($ap);
 
     // ════════════════════════════════════════════════
@@ -1022,6 +1030,20 @@ case 'get_scoring':
     $level = $score >= 70 ? 'high' : ($score >= 40 ? 'medium' : 'low');
 
     json_ok(['score' => $score, 'level' => $level, 'flags' => $flags]);
+
+    case 'toggle_ban':
+        require_auth();
+        if ($_SESSION['role'] !== 'super') json_error('Только администратор');
+        $body = get_body();
+        $chat_id = intval($body['chat_id'] ?? $_POST['chat_id'] ?? 0);
+        if (!$chat_id) json_error('Не указан chat_id');
+        $s = $pdo->prepare("SELECT banned FROM bot_users WHERE chat_id = ?");
+        $s->execute([$chat_id]);
+        $current = $s->fetchColumn();
+        if ($current === false) json_error('Пользователь не найден');
+        $newVal = (int)$current === 1 ? 0 : 1;
+        $pdo->prepare("UPDATE bot_users SET banned = ? WHERE chat_id = ?")->execute([$newVal, $chat_id]);
+        json_ok(['banned' => $newVal]);
 
     default:
         json_error('Неизвестное действие', 404);
