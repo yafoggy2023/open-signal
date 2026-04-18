@@ -353,9 +353,6 @@ if (isset($update['callback_query'])) {
     $data = $cb['data'];
     $user = ensureBotUser($chatId, $cb['from']['username'] ?? null, $cb['from']['language_code'] ?? null);
 
-    $__st = getState($chatId);
-    @file_put_contents(__DIR__.'/bot_debug.log', date('H:i:s')." [CB] chat=$chatId data=$data state=".($__st['state']??'null')."\n", FILE_APPEND);
-
     tg('answerCallbackQuery', ['callback_query_id' => $cb['id']]);
 
     // Бан-лист
@@ -741,17 +738,21 @@ if ($text === '🆕 Новые')               { $text = '/new'; }
 if ($text === '📋 Активные')            { $text = '/list'; }
 if ($text === '🔔 Уведомления')         { $text = '/notify'; }
 if ($text === '📊 Статистика' && $user['role'] === 'operator') {
-    $total = $pdo->query("SELECT COUNT(*) FROM appeals")->fetchColumn();
-    $new   = $pdo->query("SELECT COUNT(*) FROM appeals WHERE status='new'")->fetchColumn();
-    $proc  = $pdo->query("SELECT COUNT(*) FROM appeals WHERE status IN ('process','review')")->fetchColumn();
-    $done  = $pdo->query("SELECT COUNT(*) FROM appeals WHERE status='done'")->fetchColumn();
-    $rej   = $pdo->query("SELECT COUNT(*) FROM appeals WHERE status='rejected'")->fetchColumn();
+    $r = $pdo->query("
+        SELECT
+            COUNT(*) AS total,
+            SUM(status='new') AS new_cnt,
+            SUM(status IN ('process','review')) AS proc_cnt,
+            SUM(status='done') AS done_cnt,
+            SUM(status='rejected') AS rej_cnt
+        FROM appeals
+    ")->fetch();
     send($chatId, "📊 <b>Статистика платформы</b>\n\n"
-        . "📋 Всего: <b>$total</b>\n"
-        . "🆕 Новые: <b>$new</b>\n"
-        . "🔄 В работе: <b>$proc</b>\n"
-        . "✅ Закрыто: <b>$done</b>\n"
-        . "❌ Отклонено: <b>$rej</b>", operatorMenu());
+        . "📋 Всего: <b>{$r['total']}</b>\n"
+        . "🆕 Новые: <b>{$r['new_cnt']}</b>\n"
+        . "🔄 В работе: <b>{$r['proc_cnt']}</b>\n"
+        . "✅ Закрыто: <b>{$r['done_cnt']}</b>\n"
+        . "❌ Отклонено: <b>{$r['rej_cnt']}</b>", operatorMenu());
     return;
 }
 
@@ -1183,21 +1184,17 @@ if (!defined('BOT_POLL_MODE')) {
         exit('forbidden');
     }
 
-    // Мгновенно отвечаем Telegram 200 OK, чтобы не ретраило
-    http_response_code(200);
-    header('Content-Type: text/plain');
-    header('Content-Length: 2');
-    echo 'ok';
-    if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
-
+    // Читаем input ДО любых заголовков
     $input = file_get_contents('php://input');
     $update = json_decode($input, true);
-    $__dbg = __DIR__.'/bot_debug.log';
-    $__kind = isset($update['callback_query']) ? 'cb:'.($update['callback_query']['data']??'?')
-           : (isset($update['message']) ? 'msg:'.mb_substr($update['message']['text']??'?',0,20) : 'other');
-    file_put_contents($__dbg, date('H:i:s')." IN $__kind\n", FILE_APPEND);
+
+    // Отвечаем Telegram 200 OK
+    http_response_code(200);
+    header('Content-Type: text/plain');
+    echo 'ok';
+
     if ($update) {
-        try { processUpdate($update); file_put_contents($__dbg, date('H:i:s')." OK\n", FILE_APPEND); }
-        catch (Exception $e) { file_put_contents($__dbg, date('H:i:s')." EX: ".$e->getMessage()."\n", FILE_APPEND); }
+        try { processUpdate($update); }
+        catch (Exception $e) { error_log('Bot webhook error: ' . $e->getMessage()); }
     }
 }
