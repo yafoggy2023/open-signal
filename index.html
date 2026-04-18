@@ -20,7 +20,7 @@ body{background:var(--bg);color:var(--text);font-family:serif;font-size:14px;lin
 .view-tab{flex:1;padding:9px 24px;background:var(--surface);border:none;color:var(--text-dim);font-family:monospace;font-size:11px;text-transform:uppercase;letter-spacing:1px;cursor:pointer;transition:all 0.15s;}
 .view-tab.active{background:var(--red);color:#fff;}
 .view-tab:not(.active):hover{background:var(--surface2);color:var(--text);}
-.login-emblem{width:110px;height:110px;border:1.5px solid rgba(201,168,76,0.45);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;position:relative;z-index:2;background:radial-gradient(circle,rgba(201,168,76,0.09),transparent 68%);animation:emblem-glow 3.5s ease-in-out infinite;}
+.login-emblem{width:130px;height:70px;border:none;border-radius:0;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;position:relative;z-index:2;background:none;box-shadow:none;animation:none;}
 @keyframes emblem-glow{0%,100%{box-shadow:0 0 18px rgba(201,168,76,0.1),0 0 0 3px rgba(201,168,76,0.08);}50%{box-shadow:0 0 38px rgba(201,168,76,0.28),0 0 0 6px rgba(201,168,76,0.13);}}
 .eye-blink-group{transform-box:fill-box;transform-origin:center center;animation:eye-blink 4.5s ease-in-out infinite;}
 @keyframes eye-blink{0%,84%,100%{transform:scaleY(1);}88%{transform:scaleY(0.05);}91%{transform:scaleY(1);}93%{transform:scaleY(0.05);}96%{transform:scaleY(1);}}
@@ -652,7 +652,7 @@ body.light .modal { box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
   .login-title { font-size: 17px; }
   .login-box { padding: 16px; }
   .view-tab { font-size: 10px; padding: 9px 12px; }
-  .login-emblem { width: 76px; height: 76px; }
+  .login-emblem { width: 110px; height: 58px; }
   .login-hint { font-size: 9px; }
 }
 
@@ -725,105 +725,49 @@ body.light .modal { box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
   <!-- Citizen -->
   <div class="citizen-wrap" id="citizenEntry">
     <div class="login-emblem">
-      <svg id="mainEyeLogo" viewBox="0 0 60 44" fill="none" width="58" height="42">
+      <svg id="mainEyeLogo" viewBox="0 0 90 50" fill="none" width="128" height="64">
         <defs>
           <radialGradient id="eyeIris" cx="44%" cy="40%" r="56%">
             <stop offset="0%" stop-color="#f5e07a"/>
-            <stop offset="30%" stop-color="#d4a83c"/>
-            <stop offset="68%" stop-color="#9a6010"/>
-            <stop offset="100%" stop-color="#5a3a04"/>
-          </radialGradient>
-          <radialGradient id="eyeSclera" cx="50%" cy="28%" r="65%">
-            <stop offset="0%" stop-color="#fffef8"/>
-            <stop offset="100%" stop-color="#ede4cc"/>
+            <stop offset="40%" stop-color="#c9a84c"/>
+            <stop offset="100%" stop-color="#6b3e06"/>
           </radialGradient>
           <radialGradient id="pupilGrad" cx="38%" cy="32%" r="68%">
-            <stop offset="0%" stop-color="#2c2c3e"/>
-            <stop offset="100%" stop-color="#040407"/>
+            <stop offset="0%" stop-color="#2a2a3a"/>
+            <stop offset="100%" stop-color="#040408"/>
           </radialGradient>
-          <clipPath id="eyeClip">
-            <path d="M4 22 C10 9 28 6 46 14 C52 17 57 20 56 22 C52 30 34 38 16 36 C8 34 3 28 4 22Z"/>
-          </clipPath>
         </defs>
 
-        <!-- ── BLINK GROUP ── -->
-        <g class="eye-blink-group">
-
-          <!-- Clipped eye interior -->
-          <g clip-path="url(#eyeClip)">
-            <!-- Sclera -->
-            <path d="M4 22 C10 9 28 6 46 14 C52 17 57 20 56 22 C52 30 34 38 16 36 C8 34 3 28 4 22Z" fill="url(#eyeSclera)"/>
-            <!-- Upper shadow cast by lid -->
-            <path d="M4 22 C10 9 28 6 46 14 C52 17 57 20 56 22" stroke="rgba(0,0,0,0.18)" stroke-width="4" fill="none"/>
-            <!-- Iris -->
-            <circle cx="30" cy="22" r="11" fill="url(#eyeIris)"/>
-            <!-- Iris fibers -->
-            <g stroke="#7a4200" stroke-width="0.55" opacity="0.3" stroke-linecap="round">
-              <line x1="30" y1="11.2" x2="30" y2="15.5"/>
-              <line x1="35.4" y1="12.5" x2="33.2" y2="16.2"/>
-              <line x1="39.5" y1="16" x2="36.4" y2="18.2"/>
-              <line x1="40.8" y1="21" x2="37.2" y2="21.5"/>
-              <line x1="39" y1="26.5" x2="36" y2="24.8"/>
-              <line x1="35" y1="31" x2="33" y2="27.8"/>
-              <line x1="30" y1="32.8" x2="30" y2="28.5"/>
-              <line x1="25" y1="31" x2="27" y2="27.8"/>
-              <line x1="21" y1="26.5" x2="24" y2="24.8"/>
-              <line x1="19.2" y1="21" x2="22.8" y2="21.5"/>
-              <line x1="20.5" y1="16" x2="23.6" y2="18.2"/>
-              <line x1="24.6" y1="12.5" x2="26.8" y2="16.2"/>
-            </g>
-            <!-- Limbal ring -->
-            <circle cx="30" cy="22" r="11" stroke="#120800" stroke-width="1.4" fill="none" opacity="0.55"/>
-            <!-- Pupil group — moves with cursor -->
-            <g id="eyePupilGroup">
-              <circle cx="30" cy="22" r="5.5" fill="url(#pupilGrad)"/>
-              <!-- Main corneal highlight -->
-              <ellipse cx="33" cy="18.5" rx="2.2" ry="1.5" fill="white" opacity="0.7" transform="rotate(-25 33 18.5)"/>
-              <!-- Secondary tiny highlight -->
-              <circle cx="27.5" cy="25" r="0.8" fill="white" opacity="0.22"/>
-            </g>
-            <!-- Caruncle (inner corner) -->
-            <ellipse cx="6" cy="22.5" rx="2.2" ry="1.4" fill="#c4705a" opacity="0.5"/>
-            <!-- Lower lid wetness highlight -->
-            <path d="M12 34 C24 39 42 34 54 24" stroke="rgba(255,255,255,0.14)" stroke-width="1.2" fill="none" stroke-linecap="round"/>
-          </g>
-
-          <!-- Eye outline strokes (over clip) -->
-          <!-- Upper lid (thicker, darker) -->
-          <path d="M4 22 C10 9 28 6 46 14 C52 17 57 20 56 22" stroke="#18100a" stroke-width="1.8" stroke-linecap="round" fill="none"/>
-          <!-- Lower lid -->
-          <path d="M56 22 C52 30 34 38 16 36 C8 34 3 28 4 22" stroke="#2e1e14" stroke-width="1.1" stroke-linecap="round" fill="none"/>
-          <!-- Upper lid crease -->
-          <path d="M7 20 C14 8 30 5 48 13 C53 15 57 19 57 22" stroke="rgba(0,0,0,0.1)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-
-          <!-- Upper eyelashes -->
-          <g stroke="#100a06" stroke-linecap="round" fill="none">
-            <line x1="9"  y1="14.5" x2="7"   y2="9.5"  stroke-width="1.2"/>
-            <line x1="15" y1="10"   x2="14"  y2="5"    stroke-width="1.2"/>
-            <line x1="22" y1="7.5"  x2="21.5" y2="2.5" stroke-width="1.2"/>
-            <line x1="30" y1="6.5"  x2="30"  y2="1.5"  stroke-width="1.2"/>
-            <line x1="38" y1="8"    x2="38.5" y2="3"   stroke-width="1.2"/>
-            <line x1="45" y1="12"   x2="46.5" y2="7.5" stroke-width="1.1"/>
-            <line x1="51" y1="17"   x2="53.5" y2="13.5" stroke-width="1.0"/>
-            <line x1="6"  y1="18.5" x2="3.5" y2="14.5" stroke-width="1.0"/>
-          </g>
-          <!-- Lower eyelashes (shorter, sparse) -->
-          <g stroke="#2a1810" stroke-linecap="round" fill="none" opacity="0.55">
-            <line x1="14" y1="35.5" x2="13"  y2="38.5" stroke-width="0.9"/>
-            <line x1="24" y1="38"   x2="23.5" y2="41"  stroke-width="0.9"/>
-            <line x1="35" y1="37.5" x2="35.5" y2="40.5" stroke-width="0.9"/>
-            <line x1="44" y1="33.5" x2="45.5" y2="36"  stroke-width="0.8"/>
-          </g>
-
-        </g><!-- /blink group -->
-
-        <!-- Signal arcs (outside blink — always visible) -->
-        <path d="M56 14 A8 8 0 0 1 56 30" stroke="#c9a84c" stroke-width="1.3" stroke-linecap="round">
+        <!-- Signal arcs (left) -->
+        <path d="M8 19 A6 6 0 0 0 8 31" stroke="#c9a84c" stroke-width="1.5" stroke-linecap="round">
           <animate attributeName="opacity" values="0.25;0.65;0.25" dur="2.4s" repeatCount="indefinite"/>
         </path>
-        <path d="M59 10 A13 13 0 0 1 59 34" stroke="#c9a84c" stroke-width="0.85" stroke-linecap="round">
+        <path d="M4 14 A11 11 0 0 0 4 36" stroke="#c9a84c" stroke-width="0.9" stroke-linecap="round">
           <animate attributeName="opacity" values="0.1;0.3;0.1" dur="2.4s" repeatCount="indefinite" begin="0.35s"/>
         </path>
+        <!-- Signal arcs (right) -->
+        <path d="M82 19 A6 6 0 0 1 82 31" stroke="#c9a84c" stroke-width="1.5" stroke-linecap="round">
+          <animate attributeName="opacity" values="0.25;0.65;0.25" dur="2.4s" repeatCount="indefinite"/>
+        </path>
+        <path d="M86 14 A11 11 0 0 1 86 36" stroke="#c9a84c" stroke-width="0.9" stroke-linecap="round">
+          <animate attributeName="opacity" values="0.1;0.3;0.1" dur="2.4s" repeatCount="indefinite" begin="0.35s"/>
+        </path>
+
+        <!-- Eye blink group -->
+        <g class="eye-blink-group">
+          <!-- Eye almond outline + fill -->
+          <path d="M12 25 C20 6 70 6 78 25 C70 44 20 44 12 25 Z" stroke="#c9a84c" stroke-width="1.8" fill="rgba(201,168,76,0.04)"/>
+          <!-- Iris -->
+          <circle cx="45" cy="25" r="13" fill="url(#eyeIris)"/>
+          <!-- Iris inner ring -->
+          <circle cx="45" cy="25" r="10" stroke="#7a4e08" stroke-width="0.8" fill="none" opacity="0.4"/>
+          <!-- Pupil group — moves with cursor -->
+          <g id="eyePupilGroup">
+            <circle cx="45" cy="25" r="5.8" fill="url(#pupilGrad)"/>
+            <ellipse cx="48.5" cy="21" rx="2.4" ry="1.6" fill="white" opacity="0.6" transform="rotate(-20 48.5 21)"/>
+            <circle cx="41.5" cy="28.5" r="0.9" fill="white" opacity="0.2"/>
+          </g>
+        </g>
       </svg>
     </div>
     <div class="login-org">Открытый сигнал</div>
@@ -2369,9 +2313,9 @@ function openFile(e, appealId, filename) {
   var MAX = 2.8; // max SVG-unit movement (iris radius ~11, keep inside)
   document.addEventListener('mousemove', function(e){
     var r  = svg.getBoundingClientRect();
-    // Eye center is at SVG coord (30,22) within 60x44 viewBox
-    var cx = r.left + r.width  * (30/60);
-    var cy = r.top  + r.height * (22/44);
+    // Eye center is at SVG coord (45,25) within 90x50 viewBox
+    var cx = r.left + r.width  * (45/90);
+    var cy = r.top  + r.height * (25/50);
     var dx = e.clientX - cx;
     var dy = e.clientY - cy;
     var dist = Math.sqrt(dx*dx + dy*dy) || 1;
