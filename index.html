@@ -22,6 +22,9 @@ body{background:var(--bg);color:var(--text);font-family:serif;font-size:14px;lin
 .view-tab:not(.active):hover{background:var(--surface2);color:var(--text);}
 .login-emblem{width:80px;height:80px;border:1.5px solid rgba(201,168,76,0.55);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;position:relative;z-index:2;background:radial-gradient(circle,rgba(201,168,76,0.1),transparent 68%);animation:emblem-glow 3.5s ease-in-out infinite;}
 @keyframes emblem-glow{0%,100%{box-shadow:0 0 18px rgba(201,168,76,0.1),0 0 0 3px rgba(201,168,76,0.08);}50%{box-shadow:0 0 38px rgba(201,168,76,0.28),0 0 0 6px rgba(201,168,76,0.13);}}
+.eye-blink-group{transform-box:fill-box;transform-origin:center center;animation:eye-blink 4.5s ease-in-out infinite;}
+@keyframes eye-blink{0%,84%,100%{transform:scaleY(1);}88%{transform:scaleY(0.05);}91%{transform:scaleY(1);}93%{transform:scaleY(0.05);}96%{transform:scaleY(1);}}
+#eyePupilGroup{transition:transform 0.07s ease-out;}
 .login-org{font-family:'Oswald',sans-serif;font-size:11px;font-weight:500;letter-spacing:3px;text-transform:uppercase;color:var(--gold);text-align:center;margin-bottom:4px;position:relative;z-index:2;}
 .login-title{font-family:'Oswald',sans-serif;font-size:20px;font-weight:600;letter-spacing:1px;text-align:center;color:var(--text);margin-bottom:2px;position:relative;z-index:2;}
 .login-sub{font-family:monospace;font-size:11px;color:var(--text-dim);text-align:center;margin-bottom:28px;position:relative;z-index:2;}
@@ -722,7 +725,7 @@ body.light .modal { box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
   <!-- Citizen -->
   <div class="citizen-wrap" id="citizenEntry">
     <div class="login-emblem">
-      <svg viewBox="0 0 44 44" fill="none" width="42" height="42">
+      <svg id="mainEyeLogo" viewBox="0 0 44 44" fill="none" width="42" height="42">
         <defs>
           <radialGradient id="eyeIris" cx="42%" cy="40%" r="58%">
             <stop offset="0%" stop-color="#f0d878"/>
@@ -746,17 +749,21 @@ body.light .modal { box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
         <path d="M39 15.5 A7 7 0 0 1 39 28.5" stroke="#c9a84c" stroke-width="0.9" stroke-linecap="round">
           <animate attributeName="opacity" values="0.12;0.35;0.12" dur="2.4s" repeatCount="indefinite" begin="0.35s"/>
         </path>
-        <!-- Eye almond -->
-        <path d="M8 22 C11 14 33 14 36 22 C33 30 11 30 8 22 Z" stroke="#c9a84c" stroke-width="1.6" fill="rgba(201,168,76,0.05)"/>
-        <!-- Iris -->
-        <circle cx="22" cy="22" r="7" fill="url(#eyeIris)"/>
-        <!-- Iris ring -->
-        <circle cx="22" cy="22" r="5" stroke="#7a4e08" stroke-width="0.7" fill="none" opacity="0.5"/>
-        <!-- Pupil -->
-        <circle cx="22" cy="22" r="3.2" fill="#0d0d18"/>
-        <!-- Highlight -->
-        <circle cx="23.8" cy="20.4" r="1.1" fill="white" opacity="0.5"/>
-        <circle cx="20.8" cy="23.2" r="0.5" fill="white" opacity="0.18"/>
+        <!-- Eye blink group (scales on Y for blink effect) -->
+        <g class="eye-blink-group">
+          <!-- Eye almond -->
+          <path d="M8 22 C11 14 33 14 36 22 C33 30 11 30 8 22 Z" stroke="#c9a84c" stroke-width="1.6" fill="rgba(201,168,76,0.05)"/>
+          <!-- Iris -->
+          <circle cx="22" cy="22" r="7" fill="url(#eyeIris)"/>
+          <!-- Iris ring -->
+          <circle cx="22" cy="22" r="5" stroke="#7a4e08" stroke-width="0.7" fill="none" opacity="0.5"/>
+          <!-- Pupil group — moves with cursor -->
+          <g id="eyePupilGroup">
+            <circle cx="22" cy="22" r="3.2" fill="#0d0d18"/>
+            <circle cx="23.8" cy="20.4" r="1.1" fill="white" opacity="0.5"/>
+            <circle cx="20.8" cy="23.2" r="0.5" fill="white" opacity="0.18"/>
+          </g>
+        </g>
       </svg>
     </div>
     <div class="login-org">Открытый сигнал</div>
@@ -2292,6 +2299,34 @@ function openFile(e, appealId, filename) {
 }
 
 }); // end DOMContentLoaded
+
+// ── EYE: pupil follows cursor ────────────────────────────
+(function(){
+  var svg    = document.getElementById('mainEyeLogo');
+  var pupil  = document.getElementById('eyePupilGroup');
+  if (!svg || !pupil) return;
+  var cur = {x:0, y:0};
+  var tgt = {x:0, y:0};
+  var MAX = 1.9; // max SVG-unit movement
+  document.addEventListener('mousemove', function(e){
+    var r  = svg.getBoundingClientRect();
+    var cx = r.left + r.width  / 2;
+    var cy = r.top  + r.height / 2;
+    var dx = e.clientX - cx;
+    var dy = e.clientY - cy;
+    var dist  = Math.sqrt(dx*dx + dy*dy) || 1;
+    var norm  = Math.min(dist / 130, 1) * MAX;
+    tgt.x = dx / dist * norm;
+    tgt.y = dy / dist * norm;
+  });
+  // Smooth interpolation loop
+  (function loop(){
+    cur.x += (tgt.x - cur.x) * 0.12;
+    cur.y += (tgt.y - cur.y) * 0.12;
+    pupil.setAttribute('transform','translate('+cur.x.toFixed(3)+','+cur.y.toFixed(3)+')');
+    requestAnimationFrame(loop);
+  })();
+})();
 </script>
 </body>
 </html>
