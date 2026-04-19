@@ -377,7 +377,7 @@ function askStep($chatId, $state, $data) {
             send($chatId, $bar . "📍 <b>Место события</b>\n\nГде произошло? Укажите адрес, город или регион.\n\n• <b>«🗺 Указать на карте»</b> — откроется карта\n• <b>«📍 Отправить геолокацию»</b> — текущее местоположение", $locKb);
             break;
         case 'await_event_date':
-            send($chatId, $bar . "📅 <b>Дата события</b>\n\nКогда произошло? Укажите дату.\nНапример: 05.03.2026 или март 2026\n\nВведите текстом или нажмите «Пропустить».",
+            send($chatId, $bar . "📅 <b>Дата события</b>\n\nКогда произошло?\nНапример: 05.03.2026 или март 2026",
                 replyKb([[['text' => '📅 Сегодня'], ['text' => '⏭ Пропустить']], [['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
             break;
         case 'await_anon':
@@ -1034,7 +1034,7 @@ if ($st['state'] === 'await_location') {
                 inlineKb([[['text' => '🗺 Показать на карте', 'url' => "https://yandex.ru/maps/?pt=$lon,$lat&z=16&l=map"]]]));
             pushHistory($d, 'await_location');
             setState($chatId, 'await_event_date', $d);
-            send($chatId, stepBar('await_event_date', $d) . "📅 <b>Дата события</b>\n\nКогда произошло? Укажите дату.\nНапример: 05.03.2026 или март 2026\n\nВведите текстом или нажмите «Пропустить».",
+            send($chatId, stepBar('await_event_date', $d) . "📅 <b>Дата события</b>\n\nКогда произошло?\nНапример: 05.03.2026 или март 2026",
                 replyKb([[['text' => '📅 Сегодня'], ['text' => '⏭ Пропустить']], [['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
             return;
         }
@@ -1066,7 +1066,7 @@ if ($st['state'] === 'await_location') {
     }
     pushHistory($d, 'await_location');
     setState($chatId, 'await_event_date', $d);
-    send($chatId, stepBar('await_event_date', $d) . "📅 <b>Дата события</b>\n\nКогда произошло? Укажите дату.\nНапример: 05.03.2026 или март 2026\n\nВведите текстом или нажмите «Пропустить».",
+    send($chatId, stepBar('await_event_date', $d) . "📅 <b>Дата события</b>\n\nКогда произошло?\nНапример: 05.03.2026 или март 2026",
         replyKb([[['text' => '📅 Сегодня'], ['text' => '⏭ Пропустить']], [['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
     return;
 }
@@ -1090,15 +1090,16 @@ if ($st['state'] === 'await_event_date') {
     }
     pushHistory($d, 'await_event_date');
     setState($chatId, 'await_anon', $d);
-    send($chatId, stepBar('await_anon', $d) . "👤 <b>Как отправить сообщение?</b>\n\n"
+    $anonText = stepBar('await_anon', $d) . "👤 <b>Как отправить сообщение?</b>\n\n"
         . "🔒 <b>Анонимно</b> — ваши личные данные не сохраняются. Мы не сможем связаться с вами для уточнения деталей.\n\n"
         . "👤 <b>С указанием данных</b> — ФИО и контакты нужны для связи с вами и выяснения обстоятельств. "
-        . "Данные используются исключительно в рамках платформы и не передаются третьим лицам.",
-        inlineKb([
-            [btn('🔒 Анонимно', 'anon_yes')],
-            [btn('👤 Указать свои данные', 'anon_no')],
-            [btn('← Назад', 'go_back')]
-        ]));
+        . "Данные используются исключительно в рамках платформы и не передаются третьим лицам.";
+    $anonKb = inlineKb([[btn('🔒 Анонимно', 'anon_yes')], [btn('👤 Указать свои данные', 'anon_no')], [btn('← Назад', 'go_back')]]);
+    // Отправляем с removeKb чтобы убрать reply-клавиатуру даты, затем добавляем inline-кнопки
+    $r = send($chatId, $anonText, removeKb());
+    if (!empty($r['result']['message_id'])) {
+        tg('editMessageReplyMarkup', ['chat_id' => $chatId, 'message_id' => $r['result']['message_id'], 'reply_markup' => $anonKb]);
+    }
     return;
 }
 
