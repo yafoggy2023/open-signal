@@ -410,13 +410,13 @@ function askStep($chatId, $state, $data) {
             break;
         case 'await_message':
             send($chatId, $bar . "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.",
-                replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
+                replyKb([[['text' => '❌ Отмена']]], true, false));
             break;
         case 'await_files':
             $cnt = count($data['files'] ?? []);
-            $hint = $cnt > 0 ? "Уже прикреплено: $cnt/5. Отправьте ещё или нажмите Готово." : "Можно отправить несколько. Когда закончите, нажмите кнопку ниже.";
-            send($chatId, $bar . "📎 <b>Прикрепите файлы, фото или видео</b> (до 5 шт.)\n\n$hint",
-                inlineKb([[btn('✅ Отправить без файлов', 'skip_files'), btn('✅ Готово', 'done_files')], [btn('← Назад', 'go_back')]]));
+            $hint = $cnt > 0 ? "Уже прикреплено: $cnt/5. Можно добавить ещё." : "Можно отправить несколько или не отправлять вообще.";
+            send($chatId, $bar . "📎 <b>Прикрепите файлы любого формата</b> (до 5 шт.)\n\n$hint",
+                inlineKb([[btn('✅ Готово', 'done_files')], [btn('← Назад', 'go_back')]]));
             break;
     }
 }
@@ -520,7 +520,7 @@ if (isset($update['callback_query'])) {
                 pushHistory($d, 'await_contact_telegram');
                 setState($chatId, 'await_message', $d);
                 send($chatId, stepBar('await_message', $d) . "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.",
-                    replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
+                    replyKb([[['text' => '❌ Отмена']]], true, false));
             }
         }
         return;
@@ -568,8 +568,9 @@ if (isset($update['callback_query'])) {
                 pushHistory($d, 'await_anon');
                 $d['is_anon'] = 1;
                 setState($chatId, 'await_message', $d);
-                editMsg($chatId, $msgId, stepBar('await_message', $d) . "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.", null);
-                send($chatId, "⬇️", replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
+                editMsg($chatId, $msgId, "✅ Выбрано: анонимно.", null);
+                send($chatId, stepBar('await_message', $d) . "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.",
+                    replyKb([[['text' => '❌ Отмена']]], true, false));
             } else {
                 pushHistory($d, 'await_anon');
                 $d['is_anon'] = 0;
@@ -1190,7 +1191,7 @@ if ($st['state'] === 'await_contact_telegram') {
     pushHistory($d, 'await_contact_telegram');
     setState($chatId, 'await_message', $d);
     send($chatId, stepBar('await_message', $d) . "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.",
-        replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
+        replyKb([[['text' => '❌ Отмена']]], true, false));
     return;
 }
 
@@ -1202,8 +1203,8 @@ if ($st['state'] === 'await_message') {
     $d['message_text'] = $text;
     $d['files'] = [];
     setState($chatId, 'await_files', $d);
-    send($chatId, stepBar('await_files', $d) . "📎 <b>Прикрепите файлы, фото или видео</b> (до 5 шт.)\n\nМожно отправить несколько. Когда закончите, нажмите кнопку ниже.",
-        inlineKb([[btn('✅ Отправить без файлов', 'skip_files'), btn('✅ Готово', 'done_files')], [btn('← Назад', 'go_back')]]));
+    send($chatId, stepBar('await_files', $d) . "📎 <b>Прикрепите файлы любого формата</b> (до 5 шт.)\n\nМожно отправить несколько или не отправлять вообще.",
+        inlineKb([[btn('✅ Готово', 'done_files')], [btn('← Назад', 'go_back')]]));
     return;
 }
 
@@ -1258,8 +1259,8 @@ if ($st['state'] === 'await_files') {
     }
 
     if ($text && $text !== '❌ Отмена') {
-        send($chatId, "⚠ Сейчас ожидаются файлы, фото или видео. Отправьте файл или нажмите кнопку.",
-            inlineKb([[btn('✅ Отправить без файлов', 'skip_files'), btn('✅ Готово', 'done_files')], [btn('← Назад', 'go_back')]]));
+        send($chatId, "⚠ Сейчас ожидаются файлы. Отправьте файл или нажмите <b>Готово</b>.",
+            inlineKb([[btn('✅ Готово', 'done_files')], [btn('← Назад', 'go_back')]]));
         return;
     }
 }
