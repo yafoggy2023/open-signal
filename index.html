@@ -1653,8 +1653,8 @@ function renderDetailBody(a){
         '<div class="link-results" id="linkResults"></div>'+
         (linked.length?'<div class="linked-list" id="linkedList" style="margin-top:8px">'+linked.map(function(lid){
             var la=_appeals.find(function(x){return x.appeal_id===lid;});
-            if(!la)return'<div class="linked-item" style="cursor:default"><span class="li-id">'+lid+'</span><span class="li-subj">—</span></div>';
-            return'<div class="linked-item" style="cursor:pointer" onclick="openDetail(\''+la.appeal_id+'\')"><span class="li-id">'+la.appeal_id+'</span><span class="li-subj">'+esc(la.subject)+'</span><button class="li-remove" data-unlink="'+lid+'" onclick="event.stopPropagation()">✕</button></div>';
+            if(!la)return'<div class="linked-item" data-open="'+lid+'"><span class="li-id">'+lid+'</span><span class="li-subj">—</span></div>';
+            return'<div class="linked-item" data-open="'+lid+'"><span class="li-id">'+la.appeal_id+'</span><span class="li-subj">'+esc(la.subject)+'</span><button class="li-remove" data-unlink="'+lid+'">✕</button></div>';
         }).join('')+'</div>':'<div style="font-family:monospace;font-size:11px;color:var(--text-dim);margin-top:6px">Нет связанных</div>')+
     '</div></div>';
 
@@ -1835,6 +1835,17 @@ function initLinkHandlers(a){
     document.getElementById('btnLinkSearch').addEventListener('click',doSearch);
     document.querySelectorAll('[data-unlink]').forEach(function(btn){
         btn.addEventListener('click',function(e){e.stopPropagation();unlinkAppeal(a.appeal_id,btn.dataset.unlink);});
+    });
+    document.querySelectorAll('.linked-item[data-open]').forEach(function(el){
+        el.addEventListener('click',function(){
+            var tid=el.dataset.open;
+            var found=_appeals.find(function(x){return x.appeal_id===tid;});
+            if(found){openDetail(tid);}
+            else{api('get_appeals',{q:tid},'GET').then(function(list){
+                (list||[]).forEach(function(ap){if(!_appeals.find(function(x){return x.appeal_id===ap.appeal_id;}))_appeals.push(ap);});
+                openDetail(tid);
+            });}
+        });
     });
 }
 
