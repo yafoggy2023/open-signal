@@ -102,8 +102,8 @@ function auto_link_appeals($pdo, $appealId, $contactJson, $senderChatId) {
 // ── СЕССИЯ ────────────────────────────────────────────
 session_start();
 
-// Таймаут сессии
-if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) > SESSION_TIMEOUT) {
+// Таймаут сессии (пропускаем если включено «Запомнить меня»)
+if (isset($_SESSION['last_activity']) && empty($_SESSION['remember']) && (time() - $_SESSION['last_activity']) > SESSION_TIMEOUT) {
     session_destroy();
     session_start();
 }
@@ -217,6 +217,21 @@ switch ($action) {
         $_SESSION['user_role'] = $user['role'];
         $_SESSION['user_login']= $user['login'];
         $_SESSION['last_activity'] = time();
+
+        if (!empty($body['remember'])) {
+            $lifetime = 30 * 24 * 3600;
+            ini_set('session.gc_maxlifetime', $lifetime);
+            $p = session_get_cookie_params();
+            setcookie(session_name(), session_id(), [
+                'expires'  => time() + $lifetime,
+                'path'     => $p['path'],
+                'domain'   => $p['domain'],
+                'secure'   => $p['secure'],
+                'httponly' => true,
+                'samesite' => 'Lax'
+            ]);
+            $_SESSION['remember'] = true;
+        }
 
         json_ok([
             'id'        => $user['id'],

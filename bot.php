@@ -493,7 +493,7 @@ if (isset($update['callback_query'])) {
             return;
         }
         setState($chatId, 'await_subject');
-        editMsg($chatId, $msgId, "✅ Условия приняты.", null);
+        tg('deleteMessage', ['chat_id' => $chatId, 'message_id' => $msgId]);
         send($chatId, stepBar('await_subject', []) . "📝 <b>Введите тему сообщения</b> (одной строкой):",
             replyKb([[['text' => '❌ Отмена']]], true, false));
         return;
@@ -504,12 +504,11 @@ if (isset($update['callback_query'])) {
         $st = getState($chatId);
         if ($st['state'] === 'await_contact_telegram') {
             $d = $st['data'];
+            tg('deleteMessage', ['chat_id' => $chatId, 'message_id' => $msgId]);
             if ($data === 'tg_use_auto') {
                 $d['contact_telegram'] = $d['contact_telegram_auto'] ?? '';
-                editMsg($chatId, $msgId, "✅ Telegram: <b>" . ($d['contact_telegram'] ?: '—') . "</b>", null);
             } else {
                 $d['contact_telegram'] = '';
-                editMsg($chatId, $msgId, "⏭ Telegram пропущен.", null);
             }
             $hasAny = !empty($d['contact_phone']) || !empty($d['contact_email']) || !empty($d['contact_telegram']);
             if (!$hasAny) {
@@ -538,7 +537,8 @@ if (isset($update['callback_query'])) {
             $rows = [];
             foreach ($PRIORITIES as $k => $v) $rows[] = [btn($v, "pri_$k")];
             $rows[] = [btn('← Назад', 'go_back')];
-            editMsg($chatId, $msgId, stepBar('await_priority', $d) . "📌 <b>Выберите срочность:</b>", inlineKb($rows));
+            tg('deleteMessage', ['chat_id' => $chatId, 'message_id' => $msgId]);
+            send($chatId, stepBar('await_priority', $d) . "📌 <b>Выберите срочность:</b>", inlineKb($rows));
         }
         return;
     }
@@ -552,7 +552,7 @@ if (isset($update['callback_query'])) {
             pushHistory($d, 'await_priority');
             $d['priority'] = $pri;
             setState($chatId, 'await_organ', $d);
-            editMsg($chatId, $msgId, "✅ Срочность выбрана.", null);
+            tg('deleteMessage', ['chat_id' => $chatId, 'message_id' => $msgId]);
             send($chatId, stepBar('await_organ', $d) . "🏢 <b>Укажите орган/организацию</b>\n\nНа кого направлено сообщение?\nНапример: Администрация г. Москвы",
                 replyKb([[['text' => '⏭ Пропустить'], ['text' => '❌ Отмена']], [['text' => '← Назад']]], true, false));
         }
@@ -568,14 +568,14 @@ if (isset($update['callback_query'])) {
                 pushHistory($d, 'await_anon');
                 $d['is_anon'] = 1;
                 setState($chatId, 'await_message', $d);
-                editMsg($chatId, $msgId, "✅ Выбрано: анонимно.", null);
+                tg('deleteMessage', ['chat_id' => $chatId, 'message_id' => $msgId]);
                 send($chatId, stepBar('await_message', $d) . "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.",
                     replyKb([[['text' => '❌ Отмена']]], true, false));
             } else {
                 pushHistory($d, 'await_anon');
                 $d['is_anon'] = 0;
                 setState($chatId, 'await_contact_name', $d);
-                editMsg($chatId, $msgId, "👤 Вы выбрали: <b>указать данные</b>", null);
+                tg('deleteMessage', ['chat_id' => $chatId, 'message_id' => $msgId]);
                 send($chatId, stepBar('await_contact_name', $d) . "👤 <b>Введите ФИО:</b>\n\nНапример: Иванов Иван Иванович\n\n<i>Указывая данные, вы даёте согласие на их обработку в рамках платформы «Открытый сигнал».</i>",
                     replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
             }
@@ -590,6 +590,7 @@ if (isset($update['callback_query'])) {
             $d = $st['data'];
             pushHistory($d, 'await_files');
             setState($chatId, 'await_confirm', $d);
+            tg('deleteMessage', ['chat_id' => $chatId, 'message_id' => $msgId]);
             $isAnon = !empty($d['is_anon']);
             $anonStr = $isAnon ? '🔒 Анонимно' : '👤 ' . htmlspecialchars($d['contact_name'] ?? 'Контакты указаны');
             $filesCount = count($d['files'] ?? []);
@@ -608,7 +609,7 @@ if (isset($update['callback_query'])) {
                 . "📝 <b>Текст:</b> " . htmlspecialchars($msgPreview) . "\n"
                 . "$filesStr\n\n"
                 . "Всё верно?";
-            editMsg($chatId, $msgId, $card, inlineKb([
+            send($chatId, $card, inlineKb([
                 [btn('✅ Отправить', 'confirm_yes')],
                 [btn('✏️ Изменить с первого шага', 'confirm_edit')],
                 [btn('← Назад к файлам', 'go_back')]
@@ -698,7 +699,8 @@ if (isset($update['callback_query'])) {
                 $mapUrl = 'https://yandex.ru/maps/?text=' . urlencode($d['location']);
                 $confirmKb = inlineKb([[['text' => '🗺 Показать на карте', 'url' => $mapUrl]]]);
             }
-            editMsg($chatId, $msgId, "✅ <b>Сообщение отправлено!</b>\n\n"
+            tg('deleteMessage', ['chat_id' => $chatId, 'message_id' => $msgId]);
+            send($chatId, "✅ <b>Сообщение отправлено!</b>\n\n"
                 . "📋 Номер: <code>$appealId</code>\n"
                 . "📌 Тема: " . htmlspecialchars($d['subject']) . "\n"
                 . "📂 Категория: " . htmlspecialchars($CATEGORIES[$d['category']] ?? $d['category']) . "\n"
@@ -729,7 +731,7 @@ if (isset($update['callback_query'])) {
             $d = $st['data'];
             $d['__history'] = [];
             setState($chatId, 'await_subject', $d);
-            editMsg($chatId, $msgId, "✏️ Редактируем с первого шага.", null);
+            tg('deleteMessage', ['chat_id' => $chatId, 'message_id' => $msgId]);
             send($chatId, stepBar('await_subject', $d) . "📝 <b>Введите тему сообщения</b> (одной строкой):",
                 replyKb([[['text' => '❌ Отмена']]], true, false));
         }
@@ -755,7 +757,7 @@ if (isset($update['callback_query'])) {
     }
     if ($data === 'draft_discard') {
         clearState($chatId);
-        editMsg($chatId, $msgId, "🗑 Черновик удалён.", null);
+        tg('deleteMessage', ['chat_id' => $chatId, 'message_id' => $msgId]);
         setState($chatId, 'await_consent');
         send($chatId, "📨 <b>Новое сообщение</b>\n\nПеред отправкой ознакомьтесь с условиями:\n\n"
             . "• Данная платформа <b>не является</b> государственным ресурсом.\n"

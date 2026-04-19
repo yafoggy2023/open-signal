@@ -822,6 +822,10 @@ body.light .modal { box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
     <div class="login-box">
       <div class="field"><label>Логин</label><input type="text" id="loginUser" placeholder="login" autocomplete="off"></div>
       <div class="field"><label>Пароль</label><input type="password" id="loginPass" placeholder="••••••••"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+        <input type="checkbox" id="loginRemember" style="accent-color:var(--red);width:13px;height:13px;cursor:pointer;flex-shrink:0;">
+        <label for="loginRemember" style="font-family:monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-dim);cursor:pointer;margin:0;user-select:none;">Запомнить меня на 30 дней</label>
+      </div>
       <div class="login-error" id="loginError"></div>
       <button class="login-btn" id="btnDoLogin">Войти</button>
     </div>
@@ -1312,7 +1316,8 @@ function doLogin(){
     var err=document.getElementById('loginError');
     if(!login||!pass){err.textContent='⚠ Введите логин и пароль';return;}
     err.textContent='Вход...';
-    api('login',{login:login,pass:pass})
+    var remember=document.getElementById('loginRemember').checked;
+    api('login',{login:login,pass:pass,remember:remember})
         .then(function(user){
             err.textContent='';
             setCurrentUser(user);
