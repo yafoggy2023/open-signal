@@ -311,6 +311,116 @@ function autoLinkAppeals($appealId, $contactJson, $senderChatId) {
     return count($found);
 }
 
+// ── ПРОГРЕСС-БАР ──────────────────────────────────────
+function stepBar($state, $data = []) {
+    $isAnon = isset($data['is_anon']) ? (bool)$data['is_anon'] : null;
+    $steps = ['await_subject','await_category','await_priority','await_organ',
+              'await_location','await_event_date','await_anon'];
+    if ($isAnon === false) {
+        array_push($steps, 'await_contact_name','await_contact_phone',
+                           'await_contact_email','await_contact_telegram');
+    }
+    array_push($steps, 'await_message','await_files','await_confirm');
+    $pos = array_search($state, $steps);
+    if ($pos === false) return '';
+    $n = $pos + 1; $total = count($steps);
+    return "⏳ <i>Шаг $n из $total</i>  " . str_repeat('▰',$n) . str_repeat('▱',$total-$n) . "\n\n";
+}
+
+// ── ИСТОРИЯ ДЛЯ КНОПКИ «НАЗАД» ────────────────────────
+function pushHistory(&$data, $fromState) {
+    $h = $data['__history'] ?? [];
+    $h[] = ['state' => $fromState, 'data' => $data];
+    if (count($h) > 12) array_shift($h);
+    $data['__history'] = $h;
+}
+
+function popHistory($data) {
+    $h = $data['__history'] ?? [];
+    if (!$h) return null;
+    return $h[count($h) - 1];
+}
+
+// ── ПОКАЗАТЬ ШАГ ЗАНОВО (для кнопки «Назад») ──────────
+function askStep($chatId, $state, $data) {
+    global $CATEGORIES, $PRIORITIES;
+    $bar = stepBar($state, $data);
+    $backRow = [['text' => '← Назад']];
+    switch ($state) {
+        case 'await_subject':
+            send($chatId, $bar . "📝 <b>Введите тему сообщения</b> (одной строкой):",
+                replyKb([[['text' => '❌ Отмена']]], true, false));
+            break;
+        case 'await_category':
+            $rows = [];
+            foreach ($CATEGORIES as $k => $v) $rows[] = [btn($v, "cat_$k")];
+            $rows[] = [btn('← Назад', 'go_back')];
+            send($chatId, $bar . "📂 <b>Выберите категорию:</b>", inlineKb($rows));
+            break;
+        case 'await_priority':
+            $rows = [];
+            foreach ($PRIORITIES as $k => $v) $rows[] = [btn($v, "pri_$k")];
+            $rows[] = [btn('← Назад', 'go_back')];
+            send($chatId, $bar . "📌 <b>Выберите срочность:</b>", inlineKb($rows));
+            break;
+        case 'await_organ':
+            send($chatId, $bar . "🏢 <b>Укажите орган/организацию</b>\n\nНа кого направлено сообщение?\nНапример: Администрация г. Москвы\n\nВведите текстом или нажмите «Пропустить».",
+                replyKb([[['text' => '⏭ Пропустить'], ['text' => '❌ Отмена']], $backRow], true, false));
+            break;
+        case 'await_location':
+            $locKb = ['keyboard' => [
+                [['text' => '🗺 Указать на карте', 'web_app' => ['url' => MAP_PICKER_URL]]],
+                [['text' => '📍 Отправить геолокацию', 'request_location' => true]],
+                [['text' => '⏭ Пропустить'], ['text' => '❌ Отмена']],
+                $backRow
+            ], 'resize_keyboard' => true, 'one_time_keyboard' => true];
+            send($chatId, $bar . "📍 <b>Место события</b>\n\nГде произошло? Укажите адрес, город или регион.\n\n• <b>«🗺 Указать на карте»</b> — откроется карта\n• <b>«📍 Отправить геолокацию»</b> — текущее местоположение\n• Или введите адрес текстом", $locKb);
+            break;
+        case 'await_event_date':
+            send($chatId, $bar . "📅 <b>Дата события</b>\n\nКогда произошло? Укажите дату.\nНапример: 05.03.2026 или март 2026\n\nВведите текстом или нажмите «Пропустить».",
+                replyKb([[['text' => '📅 Сегодня'], ['text' => '⏭ Пропустить']], [['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
+            break;
+        case 'await_anon':
+            send($chatId, $bar . "👤 <b>Как отправить сообщение?</b>\n\n🔒 <b>Анонимно</b> — ваши личные данные не сохраняются.\n\n👤 <b>С указанием данных</b> — ФИО и контакты нужны для связи с вами.",
+                inlineKb([[btn('🔒 Анонимно', 'anon_yes')], [btn('👤 Указать свои данные', 'anon_no')], [btn('← Назад', 'go_back')]]));
+            break;
+        case 'await_contact_name':
+            send($chatId, $bar . "👤 <b>Введите ФИО:</b>\n\nНапример: Иванов Иван Иванович",
+                replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
+            break;
+        case 'await_contact_phone':
+            $phoneKb = ['keyboard' => [
+                [['text' => '📞 Отправить мой номер', 'request_contact' => true]],
+                [['text' => '⏭ Пропустить'], ['text' => '← Назад']]
+            ], 'resize_keyboard' => true, 'one_time_keyboard' => true];
+            send($chatId, $bar . "📞 <b>Номер телефона</b>\n\nНажмите кнопку ниже, чтобы отправить свой номер, или введите вручную:", $phoneKb);
+            break;
+        case 'await_contact_email':
+            send($chatId, $bar . "📧 <b>Введите email</b> или нажмите «Пропустить»:",
+                replyKb([[['text' => '⏭ Пропустить'], ['text' => '← Назад']]], true, false));
+            break;
+        case 'await_contact_telegram':
+            $autoTg = $data['contact_telegram_auto'] ?? '';
+            $buttons = [];
+            if ($autoTg) $buttons[] = [btn("✅ Отправить $autoTg", 'tg_use_auto')];
+            $buttons[] = [btn('⏭ Пропустить', 'tg_skip')];
+            $buttons[] = [btn('← Назад', 'go_back')];
+            $mt = $bar . "💬 <b>Telegram для связи</b>\n\n" . ($autoTg ? "Ваш аккаунт: <b>$autoTg</b>\nНажмите кнопку или введите другой @username:" : "Введите ваш @username или нажмите «Пропустить»:");
+            send($chatId, $mt, inlineKb($buttons));
+            break;
+        case 'await_message':
+            send($chatId, $bar . "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.",
+                replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
+            break;
+        case 'await_files':
+            $cnt = count($data['files'] ?? []);
+            $hint = $cnt > 0 ? "Уже прикреплено: $cnt/5. Отправьте ещё или нажмите Готово." : "Можно отправить несколько. Когда закончите, нажмите кнопку ниже.";
+            send($chatId, $bar . "📎 <b>Прикрепите файлы, фото или видео</b> (до 5 шт.)\n\n$hint",
+                inlineKb([[btn('✅ Отправить без файлов', 'skip_files'), btn('✅ Готово', 'done_files')], [btn('← Назад', 'go_back')]]));
+            break;
+    }
+}
+
 // ── КАТЕГОРИИ ──────────────────────────────────────────
 $CATEGORIES = [
     'corruption' => 'Коррупция',
@@ -368,8 +478,9 @@ if (isset($update['callback_query'])) {
             return;
         }
         setState($chatId, 'await_subject');
-        editMsg($chatId, $msgId, "✅ Условия приняты.\n\n📝 <b>Введите тему сообщения</b> (одной строкой):", null);
-        send($chatId, "Для отмены нажмите кнопку ниже.", replyKb([[['text' => '❌ Отмена']]], true, false));
+        editMsg($chatId, $msgId, "✅ Условия приняты.", null);
+        send($chatId, stepBar('await_subject', []) . "📝 <b>Введите тему сообщения</b> (одной строкой):",
+            replyKb([[['text' => '❌ Отмена']]], true, false));
         return;
     }
 
@@ -385,16 +496,16 @@ if (isset($update['callback_query'])) {
                 $d['contact_telegram'] = '';
                 editMsg($chatId, $msgId, "⏭ Telegram пропущен.", null);
             }
-            // Проверяем, что хотя бы один способ связи указан
             $hasAny = !empty($d['contact_phone']) || !empty($d['contact_email']) || !empty($d['contact_telegram']);
             if (!$hasAny) {
                 send($chatId, "⚠ Вы пропустили все контакты. Укажите хотя бы один способ связи (телефон, email или Telegram), иначе мы не сможем с вами связаться.\n\n📞 <b>Введите номер телефона:</b>",
-                    replyKb([[['text' => '❌ Отмена']]], true, false));
+                    replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
                 setState($chatId, 'await_contact_phone', $d);
             } else {
+                pushHistory($d, 'await_contact_telegram');
                 setState($chatId, 'await_message', $d);
-                $cancelKb = replyKb([[['text' => '❌ Отмена']]], true, false);
-                send($chatId, "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.", $cancelKb);
+                send($chatId, stepBar('await_message', $d) . "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.",
+                    replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
             }
         }
         return;
@@ -406,13 +517,13 @@ if (isset($update['callback_query'])) {
         $st = getState($chatId);
         if ($st['state'] === 'await_category') {
             $d = $st['data'];
+            pushHistory($d, 'await_category');
             $d['category'] = $CATEGORIES[$cat] ?? $cat;
             setState($chatId, 'await_priority', $d);
             $rows = [];
-            foreach ($PRIORITIES as $k => $v) {
-                $rows[] = [btn($v, "pri_$k")];
-            }
-            editMsg($chatId, $msgId, "📌 <b>Выберите срочность:</b>", inlineKb($rows));
+            foreach ($PRIORITIES as $k => $v) $rows[] = [btn($v, "pri_$k")];
+            $rows[] = [btn('← Назад', 'go_back')];
+            editMsg($chatId, $msgId, stepBar('await_priority', $d) . "📌 <b>Выберите срочность:</b>", inlineKb($rows));
         }
         return;
     }
@@ -423,10 +534,11 @@ if (isset($update['callback_query'])) {
         $st = getState($chatId);
         if ($st['state'] === 'await_priority') {
             $d = $st['data'];
+            pushHistory($d, 'await_priority');
             $d['priority'] = $pri;
             setState($chatId, 'await_organ', $d);
-            editMsg($chatId, $msgId, "🏢 <b>Укажите орган/организацию</b>\n\nНа кого направлено сообщение?\nНапример: Администрация г. Москвы\n\nВведите текстом или нажмите «Пропустить».", null);
-            send($chatId, "⬇️", replyKb([[['text' => '⏭ Пропустить'], ['text' => '❌ Отмена']]], true, false));
+            editMsg($chatId, $msgId, stepBar('await_organ', $d) . "🏢 <b>Укажите орган/организацию</b>\n\nНа кого направлено сообщение?\nНапример: Администрация г. Москвы\n\nВведите текстом или нажмите «Пропустить».", null);
+            send($chatId, "⬇️", replyKb([[['text' => '⏭ Пропустить'], ['text' => '❌ Отмена']], [['text' => '← Назад']]], true, false));
         }
         return;
     }
@@ -437,29 +549,64 @@ if (isset($update['callback_query'])) {
         if ($st['state'] === 'await_anon') {
             $d = $st['data'];
             if ($data === 'anon_yes') {
+                pushHistory($d, 'await_anon');
                 $d['is_anon'] = 1;
                 setState($chatId, 'await_message', $d);
-                editMsg($chatId, $msgId, "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.", null);
+                editMsg($chatId, $msgId, stepBar('await_message', $d) . "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.", null);
+                send($chatId, "⬇️", replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
             } else {
+                pushHistory($d, 'await_anon');
                 $d['is_anon'] = 0;
                 setState($chatId, 'await_contact_name', $d);
                 editMsg($chatId, $msgId, "👤 Вы выбрали: <b>указать данные</b>", null);
-                send($chatId, "👤 <b>Введите ФИО:</b>\n\nНапример: Иванов Иван Иванович\n\n<i>Указывая данные, вы даёте согласие на их обработку в рамках платформы «Открытый сигнал».</i>",
-                    replyKb([[['text' => '❌ Отмена']]], true, false));
+                send($chatId, stepBar('await_contact_name', $d) . "👤 <b>Введите ФИО:</b>\n\nНапример: Иванов Иван Иванович\n\n<i>Указывая данные, вы даёте согласие на их обработку в рамках платформы «Открытый сигнал».</i>",
+                    replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
             }
         }
         return;
     }
 
-    // Пропустить файлы / Готово — сохранить сообщение
+    // Пропустить файлы / Готово — показать карточку подтверждения
     if ($data === 'skip_files' || $data === 'done_files') {
         $st = getState($chatId);
         if ($st['state'] === 'await_files') {
             $d = $st['data'];
-            $appealId = genAppealId();
+            pushHistory($d, 'await_files');
+            setState($chatId, 'await_confirm', $d);
+            $isAnon = !empty($d['is_anon']);
+            $anonStr = $isAnon ? '🔒 Анонимно' : '👤 ' . htmlspecialchars($d['contact_name'] ?? 'Контакты указаны');
+            $filesCount = count($d['files'] ?? []);
+            $filesStr = $filesCount > 0 ? "📎 $filesCount вложений" : 'Без вложений';
+            $card = "📋 <b>Проверьте перед отправкой:</b>\n\n"
+                . "📌 <b>Тема:</b> " . htmlspecialchars($d['subject']) . "\n"
+                . "📂 <b>Категория:</b> " . htmlspecialchars($d['category']) . "\n"
+                . "⚡ <b>Срочность:</b> " . ($PRIORITIES[$d['priority']] ?? $d['priority']) . "\n";
+            if (!empty($d['organ']))      $card .= "🏢 <b>Орган:</b> " . htmlspecialchars($d['organ']) . "\n";
+            if (!empty($d['location']))   $card .= "📍 <b>Место:</b> " . htmlspecialchars($d['location']) . "\n";
+            if (!empty($d['event_date_raw']) || !empty($d['event_date']))
+                $card .= "📅 <b>Дата:</b> " . htmlspecialchars($d['event_date_raw'] ?? $d['event_date']) . "\n";
+            $msgPreview = mb_substr($d['message_text'] ?? '', 0, 300);
+            if (mb_strlen($d['message_text'] ?? '') > 300) $msgPreview .= '...';
+            $card .= "👤 <b>От:</b> $anonStr\n"
+                . "📝 <b>Текст:</b> " . htmlspecialchars($msgPreview) . "\n"
+                . "$filesStr\n\n"
+                . "Всё верно?";
+            editMsg($chatId, $msgId, $card, inlineKb([
+                [btn('✅ Отправить', 'confirm_yes')],
+                [btn('✏️ Изменить с первого шага', 'confirm_edit')],
+                [btn('← Назад к файлам', 'go_back')]
+            ]));
+        }
+        return;
+    }
+
+    // Подтверждение — отправить
+    if ($data === 'confirm_yes') {
+        $st = getState($chatId);
+        if ($st['state'] === 'await_confirm') {
+            $d = $st['data'];
             $isAnon = !empty($d['is_anon']) ? 1 : 0;
             $contactJson = null;
-            // Определяем username отправителя
             $senderUsername = $user['username'] ?? '';
             if (!$isAnon) {
                 $contact = [];
@@ -472,36 +619,27 @@ if (isset($update['callback_query'])) {
                 if (!empty($d['contact_phone'])) $contact['phone'] = $d['contact_phone'];
                 if (!empty($d['contact_email'])) $contact['email'] = $d['contact_email'];
                 if (!empty($d['contact_telegram'])) $contact['telegram'] = $d['contact_telegram'];
-                // Автоматически сохраняем аккаунт отправителя
                 if ($senderUsername) $contact['telegram_sender'] = '@' . $senderUsername;
                 $contactJson = json_encode($contact, JSON_UNESCAPED_UNICODE);
             } else {
-                // Даже для анонимного — сохраняем username отправителя (виден только операторам)
                 if ($senderUsername) {
                     $contactJson = json_encode(['telegram_sender' => '@' . $senderUsername], JSON_UNESCAPED_UNICODE);
                 }
             }
-
             $msgText = $d['message_text'] ?? '';
 
-            // ── Проверки перед сохранением ────────────────
-            // Дубликат
             if (checkDuplicate($chatId, $d['subject'], $msgText)) {
                 clearState($chatId);
                 $menu = $user['role'] === 'operator' ? operatorMenu() : senderMenu();
                 editMsg($chatId, $msgId, "⚠ <b>Похожее сообщение уже отправлено</b>\n\nВы недавно отправляли сообщение с похожей темой и текстом. Повторная отправка отклонена.", null);
-                send($chatId, "📋 Главное меню:", $menu);
-                return;
+                send($chatId, "📋 Главное меню:", $menu); return;
             }
-            // Уникальность слов
             if (!checkUniqueWords($msgText)) {
                 clearState($chatId);
                 $menu = $user['role'] === 'operator' ? operatorMenu() : senderMenu();
                 editMsg($chatId, $msgId, "⚠ <b>Текст содержит слишком много повторов</b>\n\nПожалуйста, опишите ситуацию своими словами.", null);
-                send($chatId, "📋 Главное меню:", $menu);
-                return;
+                send($chatId, "📋 Главное меню:", $menu); return;
             }
-            // Спам-анализ
             $spam = spam_analyze($d['subject'], $msgText);
             $spamScore = $spam['score'];
             $spamFlags = !empty($spam['flags']) ? implode('; ', $spam['flags']) : null;
@@ -509,48 +647,40 @@ if (isset($update['callback_query'])) {
                 clearState($chatId);
                 $menu = $user['role'] === 'operator' ? operatorMenu() : senderMenu();
                 editMsg($chatId, $msgId, "⚠ <b>Сообщение отклонено системой защиты</b>\n\nТекст содержит признаки спама. Если это ошибка, попробуйте переформулировать.", null);
-                send($chatId, "📋 Главное меню:", $menu);
-                return;
+                send($chatId, "📋 Главное меню:", $menu); return;
             }
-            // Rate-limit — записываем попытку
             recordBotSubmit($chatId);
 
+            $appealId = genAppealId();
             $stmt = $pdo->prepare("INSERT INTO appeals (appeal_id, subject, category, priority, organ, location, event_date, status, is_anon, contact_json, message, sender_chat_id, source, spam_score, spam_flags, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, 'telegram', ?, ?, NOW())");
             $stmt->execute([$appealId, $d['subject'], $d['category'], $d['priority'], $d['organ'] ?? null, $d['location'] ?? null, $d['event_date'] ?? null, $isAnon, $contactJson, $msgText, $chatId, $spamScore, $spamFlags]);
             $appealDbId = $pdo->lastInsertId();
 
-            // Автосвязка повторных обращений
             $linkedCount = autoLinkAppeals($appealId, $contactJson, $chatId);
 
-            // Скачиваем и сохраняем файлы (с ClamAV-сканированием)
             $files = $d['files'] ?? [];
-            $savedFiles = 0;
-            $infectedFiles = 0;
+            $savedFiles = 0; $infectedFiles = 0;
             foreach ($files as $f) {
                 $saved = downloadTgFile($f['file_id'], $f['file_name'], $appealDbId);
-                if ($saved === 'infected') { $infectedFiles++; }
-                elseif ($saved) { $savedFiles++; }
+                if ($saved === 'infected') $infectedFiles++;
+                elseif ($saved) $savedFiles++;
             }
-
             clearState($chatId);
 
             $contactInfo = $isAnon ? '🔒 Анонимно' : '👤 ' . ($d['contact_name'] ?? '');
             $fileInfo = $savedFiles > 0 ? "\n📎 Файлов: $savedFiles" : '';
             if ($infectedFiles > 0) $fileInfo .= "\n⚠ Заражённых файлов удалено: $infectedFiles";
             $linkInfo = $linkedCount > 0 ? "\n🔗 Повторное обращение ($linkedCount связ.)" : '';
-
             $menu = $user['role'] === 'operator' ? operatorMenu() : senderMenu();
             $organInfo = !empty($d['organ']) ? "\n🏛 Орган: " . htmlspecialchars($d['organ']) : '';
             $locationInfo = !empty($d['location']) ? "\n📍 Место: " . htmlspecialchars($d['location']) : '';
             $dateInfo = !empty($d['event_date']) ? "\n📅 Дата события: " . $d['event_date'] : (!empty($d['event_date_raw']) ? "\n📅 Дата события: " . htmlspecialchars($d['event_date_raw']) : '');
 
-            // Кнопка карты если есть место
             $confirmKb = null;
             if (!empty($d['location'])) {
                 $mapUrl = 'https://yandex.ru/maps/?text=' . urlencode($d['location']);
                 $confirmKb = inlineKb([[['text' => '🗺 Показать на карте', 'url' => $mapUrl]]]);
             }
-
             editMsg($chatId, $msgId, "✅ <b>Сообщение отправлено!</b>\n\n"
                 . "📋 Номер: <code>$appealId</code>\n"
                 . "📌 Тема: " . htmlspecialchars($d['subject']) . "\n"
@@ -559,25 +689,63 @@ if (isset($update['callback_query'])) {
                 . "$organInfo$locationInfo$dateInfo\n"
                 . "$contactInfo$fileInfo$linkInfo\n\n"
                 . "<i>Данная платформа не является государственным ресурсом.</i>", $confirmKb);
-            // Отправляем меню отдельным сообщением
             send($chatId, "📋 Главное меню:", $menu);
 
-            // Уведомить операторов
-            $notify = "🔔 <b>Новое сообщение!</b>\n\n"
-                . "📋 <b>$appealId</b>\n"
-                . "📌 " . htmlspecialchars($d['subject']) . "\n"
-                . "📂 " . htmlspecialchars($CATEGORIES[$d['category']] ?? $d['category']) . "\n"
-                . "⚡ " . ($PRIORITIES[$d['priority']] ?? $d['priority']) . "\n"
-                . "$contactInfo$fileInfo$linkInfo\n\n"
+            $notify = "🔔 <b>Новое сообщение!</b>\n\n📋 <b>$appealId</b>\n📌 " . htmlspecialchars($d['subject'])
+                . "\n📂 " . htmlspecialchars($CATEGORIES[$d['category']] ?? $d['category'])
+                . "\n⚡ " . ($PRIORITIES[$d['priority']] ?? $d['priority'])
+                . "\n$contactInfo$fileInfo$linkInfo\n\n"
                 . mb_substr(htmlspecialchars($msgText), 0, 200) . (mb_strlen($msgText) > 200 ? '...' : '');
-
             $ops = $pdo->query("SELECT chat_id FROM bot_users WHERE role = 'operator' AND notify = 1")->fetchAll();
             foreach ($ops as $op) {
-                if ($op['chat_id'] != $chatId) {
+                if ($op['chat_id'] != $chatId)
                     send($op['chat_id'], $notify, inlineKb([[btn("📋 Открыть", "view_$appealId")]]));
-                }
             }
         }
+        return;
+    }
+
+    // Подтверждение — редактировать с первого шага
+    if ($data === 'confirm_edit') {
+        $st = getState($chatId);
+        if ($st['state'] === 'await_confirm') {
+            $d = $st['data'];
+            $d['__history'] = [];
+            setState($chatId, 'await_subject', $d);
+            editMsg($chatId, $msgId, "✏️ Редактируем с первого шага.", null);
+            send($chatId, stepBar('await_subject', $d) . "📝 <b>Введите тему сообщения</b> (одной строкой):",
+                replyKb([[['text' => '❌ Отмена']]], true, false));
+        }
+        return;
+    }
+
+    // Кнопка «← Назад»
+    if ($data === 'go_back') {
+        $st = getState($chatId);
+        $prev = popHistory($st['data']);
+        if ($prev) {
+            setState($chatId, $prev['state'], $prev['data']);
+            askStep($chatId, $prev['state'], $prev['data']);
+        }
+        return;
+    }
+
+    // Черновик — продолжить / начать заново
+    if ($data === 'draft_resume') {
+        $st = getState($chatId);
+        askStep($chatId, $st['state'], $st['data']);
+        return;
+    }
+    if ($data === 'draft_discard') {
+        clearState($chatId);
+        editMsg($chatId, $msgId, "🗑 Черновик удалён.", null);
+        setState($chatId, 'await_consent');
+        send($chatId, "📨 <b>Новое сообщение</b>\n\nПеред отправкой ознакомьтесь с условиями:\n\n"
+            . "• Данная платформа <b>не является</b> государственным ресурсом.\n"
+            . "• Если вы укажете персональные данные, они будут использованы <b>исключительно</b> для связи с вами.\n"
+            . "• Платформа не передаёт данные третьим лицам без вашего согласия.\n\n"
+            . "Нажмите <b>«Согласен»</b>, чтобы продолжить.",
+            inlineKb([[btn('✅ Согласен, продолжить', 'consent_yes')], [btn('❌ Отмена', 'consent_no')]]));
         return;
     }
 
@@ -731,6 +899,17 @@ if ($text === '/cancel' || $text === '❌ Отмена') {
     return;
 }
 
+if ($text === '← Назад') {
+    $prev = popHistory($st['data']);
+    if ($prev) {
+        setState($chatId, $prev['state'], $prev['data']);
+        askStep($chatId, $prev['state'], $prev['data']);
+    } else {
+        send($chatId, "Это первый шаг.", replyKb([[['text' => '❌ Отмена']]]));
+    }
+    return;
+}
+
 // ── КНОПКИ МЕНЮ ──────────────────────────────────────
 if ($text === '📨 Отправить сообщение') { $text = '/send'; }
 if ($text === '🔍 Мои сообщения')       { $text = '/status'; }
@@ -768,6 +947,18 @@ if ($text === '/send') {
     $rl = checkBotRateLimit($chatId);
     if ($rl === 'hour') { send($chatId, "⚠ Вы отправили слишком много сообщений. Попробуйте через час."); return; }
     if ($rl === 'day')  { send($chatId, "⚠ Достигнут дневной лимит сообщений. Попробуйте завтра."); return; }
+
+    // Проверяем черновик
+    $draftStates = ['await_subject','await_category','await_priority','await_organ','await_location',
+                    'await_event_date','await_anon','await_contact_name','await_contact_phone',
+                    'await_contact_email','await_contact_telegram','await_message','await_files'];
+    if (in_array($st['state'], $draftStates) && !empty($st['data'])) {
+        $subjectPreview = !empty($st['data']['subject']) ? "\n📌 Тема: <b>" . htmlspecialchars($st['data']['subject']) . "</b>" : '';
+        send($chatId, "📝 <b>У вас есть незавершённый черновик</b>$subjectPreview\n\nПродолжить с места остановки или начать заново?",
+            inlineKb([[btn('▶️ Продолжить черновик', 'draft_resume')], [btn('🗑 Начать заново', 'draft_discard')]]));
+        return;
+    }
+
     setState($chatId, 'await_consent');
     send($chatId, "📨 <b>Новое сообщение</b>\n\n"
         . "Перед отправкой ознакомьтесь с условиями:\n\n"
@@ -783,30 +974,30 @@ if ($text === '/send') {
 if ($st['state'] === 'await_subject') {
     if (mb_strlen($text) < 5) { send($chatId, "⚠ Тема слишком короткая. Минимум 5 символов."); return; }
     if (mb_strlen($text) > 200) { send($chatId, "⚠ Тема слишком длинная. Максимум 200 символов."); return; }
-    setState($chatId, 'await_category', ['subject' => $text]);
+    $d = $st['data'];
+    pushHistory($d, 'await_subject');
+    $d['subject'] = $text;
+    setState($chatId, 'await_category', $d);
     $rows = [];
-    foreach ($CATEGORIES as $k => $v) {
-        $rows[] = [btn($v, "cat_$k")];
-    }
-    send($chatId, "📂 <b>Выберите категорию:</b>", inlineKb($rows));
+    foreach ($CATEGORIES as $k => $v) $rows[] = [btn($v, "cat_$k")];
+    $rows[] = [btn('← Назад', 'go_back')];
+    send($chatId, stepBar('await_category', $d) . "📂 <b>Выберите категорию:</b>", inlineKb($rows));
     return;
 }
 
 // ── Орган, Место, Дата события ────────────────────────
 if ($st['state'] === 'await_organ') {
     $d = $st['data'];
-    if ($text === '⏭ Пропустить') {
-        $d['organ'] = '';
-    } else {
-        $d['organ'] = $text;
-    }
+    pushHistory($d, 'await_organ');
+    $d['organ'] = ($text === '⏭ Пропустить') ? '' : $text;
     setState($chatId, 'await_location', $d);
     $locKb = ['keyboard' => [
         [['text' => '🗺 Указать на карте', 'web_app' => ['url' => MAP_PICKER_URL]]],
         [['text' => '📍 Отправить геолокацию', 'request_location' => true]],
-        [['text' => '⏭ Пропустить'], ['text' => '❌ Отмена']]
+        [['text' => '⏭ Пропустить'], ['text' => '❌ Отмена']],
+        [['text' => '← Назад']]
     ], 'resize_keyboard' => true, 'one_time_keyboard' => true];
-    send($chatId, "📍 <b>Место события</b>\n\nГде произошло? Укажите адрес, город или регион.\n\n"
+    send($chatId, stepBar('await_location', $d) . "📍 <b>Место события</b>\n\nГде произошло? Укажите адрес, город или регион.\n\n"
         . "• <b>«🗺 Указать на карте»</b> — откроется карта, выберите точку\n"
         . "• <b>«📍 Отправить геолокацию»</b> — отправить текущее местоположение\n"
         . "• Или введите адрес текстом\n"
@@ -824,14 +1015,13 @@ if ($st['state'] === 'await_location') {
             $d['location'] = $webData['address'];
             $d['location_lat'] = $webData['lat'] ?? null;
             $d['location_lon'] = $webData['lon'] ?? null;
-            $lat = $webData['lat'];
-            $lon = $webData['lon'];
-            $mapUrl = "https://yandex.ru/maps/?pt=$lon,$lat&z=16&l=map";
+            $lat = $webData['lat']; $lon = $webData['lon'];
             send($chatId, "📍 Место выбрано на карте:\n<b>" . htmlspecialchars($webData['address'], ENT_QUOTES, 'UTF-8') . "</b>",
-                inlineKb([[['text' => '🗺 Показать на карте', 'url' => $mapUrl]]]));
+                inlineKb([[['text' => '🗺 Показать на карте', 'url' => "https://yandex.ru/maps/?pt=$lon,$lat&z=16&l=map"]]]));
+            pushHistory($d, 'await_location');
             setState($chatId, 'await_event_date', $d);
-            send($chatId, "📅 <b>Дата события</b>\n\nКогда произошло? Укажите дату.\nНапример: 05.03.2026 или март 2026\n\nВведите текстом или нажмите «Пропустить».",
-                replyKb([[['text' => '⏭ Пропустить'], ['text' => '❌ Отмена']]], true, false));
+            send($chatId, stepBar('await_event_date', $d) . "📅 <b>Дата события</b>\n\nКогда произошло? Укажите дату.\nНапример: 05.03.2026 или март 2026\n\nВведите текстом или нажмите «Пропустить».",
+                replyKb([[['text' => '📅 Сегодня'], ['text' => '⏭ Пропустить']], [['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
             return;
         }
     }
@@ -840,18 +1030,12 @@ if ($st['state'] === 'await_location') {
     if (isset($msg['location'])) {
         $lat = $msg['location']['latitude'];
         $lon = $msg['location']['longitude'];
-        // Обратное геокодирование через Nominatim (OSM, бесплатно)
         $geoUrl = "https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=18&addressdetails=1&accept-language=ru";
         $ctx = stream_context_create(['http' => ['header' => "User-Agent: OpenSignalBot/1.0\r\n", 'timeout' => 5]]);
         $geoJson = @file_get_contents($geoUrl, false, $ctx);
         $address = '';
-        if ($geoJson) {
-            $geo = json_decode($geoJson, true);
-            $address = $geo['display_name'] ?? '';
-        }
-        if (!$address) {
-            $address = "$lat, $lon";
-        }
+        if ($geoJson) { $geo = json_decode($geoJson, true); $address = $geo['display_name'] ?? ''; }
+        if (!$address) $address = "$lat, $lon";
         $d['location'] = $address;
         $d['location_lat'] = $lat;
         $d['location_lon'] = $lon;
@@ -862,14 +1046,14 @@ if ($st['state'] === 'await_location') {
         $d['location'] = '';
     } else {
         $d['location'] = $text;
-        // Кнопка "Показать на карте"
         $mapUrl = 'https://yandex.ru/maps/?text=' . urlencode($text);
         send($chatId, "📍 Место: <b>" . htmlspecialchars($text, ENT_QUOTES, 'UTF-8') . "</b>",
             inlineKb([[['text' => '🗺 Показать на карте', 'url' => $mapUrl]]]));
     }
+    pushHistory($d, 'await_location');
     setState($chatId, 'await_event_date', $d);
-    send($chatId, "📅 <b>Дата события</b>\n\nКогда произошло? Укажите дату.\nНапример: 05.03.2026 или март 2026\n\nВведите текстом или нажмите «Пропустить».",
-        replyKb([[['text' => '📅 Сегодня'], ['text' => '⏭ Пропустить'], ['text' => '❌ Отмена']]], true, false));
+    send($chatId, stepBar('await_event_date', $d) . "📅 <b>Дата события</b>\n\nКогда произошло? Укажите дату.\nНапример: 05.03.2026 или март 2026\n\nВведите текстом или нажмите «Пропустить».",
+        replyKb([[['text' => '📅 Сегодня'], ['text' => '⏭ Пропустить']], [['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
     return;
 }
 
@@ -881,27 +1065,25 @@ if ($st['state'] === 'await_event_date') {
         $d['event_date'] = date('Y-m-d');
         $d['event_date_raw'] = date('d.m.Y');
     } else {
-        // Пытаемся распарсить дату
         $parsed = null;
-        // Формат ДД.ММ.ГГГГ
         if (preg_match('/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/', $text, $m)) {
             $parsed = $m[3] . '-' . str_pad($m[2], 2, '0', STR_PAD_LEFT) . '-' . str_pad($m[1], 2, '0', STR_PAD_LEFT);
-        }
-        // Формат ГГГГ-ММ-ДД
-        elseif (preg_match('/^\d{4}-\d{2}-\d{2}$/', $text)) {
+        } elseif (preg_match('/^\d{4}-\d{2}-\d{2}$/', $text)) {
             $parsed = $text;
         }
         $d['event_date'] = $parsed;
         $d['event_date_raw'] = $text;
     }
+    pushHistory($d, 'await_event_date');
     setState($chatId, 'await_anon', $d);
-    send($chatId, "👤 <b>Как отправить сообщение?</b>\n\n"
+    send($chatId, stepBar('await_anon', $d) . "👤 <b>Как отправить сообщение?</b>\n\n"
         . "🔒 <b>Анонимно</b> — ваши личные данные не сохраняются. Мы не сможем связаться с вами для уточнения деталей.\n\n"
         . "👤 <b>С указанием данных</b> — ФИО и контакты нужны для связи с вами и выяснения обстоятельств. "
         . "Данные используются исключительно в рамках платформы и не передаются третьим лицам.",
         inlineKb([
             [btn('🔒 Анонимно', 'anon_yes')],
-            [btn('👤 Указать свои данные', 'anon_no')]
+            [btn('👤 Указать свои данные', 'anon_no')],
+            [btn('← Назад', 'go_back')]
         ]));
     return;
 }
@@ -911,25 +1093,25 @@ if ($st['state'] === 'await_contact_name') {
     if ($text === '⏭ Пропустить') { send($chatId, "⚠ ФИО обязательно при указании данных. Введите ФИО (минимум 3 символа)."); return; }
     if (mb_strlen($text) < 3) { send($chatId, "⚠ Введите ФИО (минимум 3 символа)."); return; }
     $d = $st['data'];
+    pushHistory($d, 'await_contact_name');
     $d['contact_name'] = $text;
     setState($chatId, 'await_contact_phone', $d);
-    // Кнопка "Поделиться номером" + "Пропустить"
     $phoneKb = ['keyboard' => [
         [['text' => '📞 Отправить мой номер', 'request_contact' => true]],
-        [['text' => '⏭ Пропустить']]
+        [['text' => '⏭ Пропустить'], ['text' => '← Назад']]
     ], 'resize_keyboard' => true, 'one_time_keyboard' => true];
-    send($chatId, "📞 <b>Номер телефона</b>\n\nНажмите кнопку ниже, чтобы отправить свой номер, или введите вручную:", $phoneKb);
+    send($chatId, stepBar('await_contact_phone', $d) . "📞 <b>Номер телефона</b>\n\nНажмите кнопку ниже, чтобы отправить свой номер, или введите вручную:", $phoneKb);
     return;
 }
 
 if ($st['state'] === 'await_contact_phone') {
-    // Проверяем, прислали ли контакт через кнопку
     if (isset($msg['contact'])) {
         $d = $st['data'];
+        pushHistory($d, 'await_contact_phone');
         $d['contact_phone'] = '+' . $msg['contact']['phone_number'];
         setState($chatId, 'await_contact_email', $d);
-        $cancelKb = replyKb([[['text' => '⏭ Пропустить'], ['text' => '❌ Отмена']]], true, false);
-        send($chatId, "✅ Номер принят: <b>" . $d['contact_phone'] . "</b>\n\n📧 <b>Введите email</b> или нажмите «Пропустить»:", $cancelKb);
+        send($chatId, "✅ Номер принят: <b>" . $d['contact_phone'] . "</b>\n\n" . stepBar('await_contact_email', $d) . "📧 <b>Введите email</b> или нажмите «Пропустить»:",
+            replyKb([[['text' => '⏭ Пропустить'], ['text' => '← Назад']]], true, false));
         return;
     }
     $d = $st['data'];
@@ -942,9 +1124,10 @@ if ($st['state'] === 'await_contact_phone') {
         }
         $d['contact_phone'] = $text;
     }
+    pushHistory($d, 'await_contact_phone');
     setState($chatId, 'await_contact_email', $d);
-    $cancelKb = replyKb([[['text' => '⏭ Пропустить'], ['text' => '❌ Отмена']]], true, false);
-    send($chatId, "📧 <b>Введите email</b> или нажмите «Пропустить»:", $cancelKb);
+    send($chatId, stepBar('await_contact_email', $d) . "📧 <b>Введите email</b> или нажмите «Пропустить»:",
+        replyKb([[['text' => '⏭ Пропустить'], ['text' => '← Назад']]], true, false));
     return;
 }
 
@@ -961,44 +1144,38 @@ if ($st['state'] === 'await_contact_email') {
     }
     $autoTg = $username ? '@' . $username : '';
     $d['contact_telegram_auto'] = $autoTg;
+    pushHistory($d, 'await_contact_email');
     setState($chatId, 'await_contact_telegram', $d);
-    // Inline-кнопки для Telegram
     $buttons = [];
-    if ($autoTg) {
-        $buttons[] = [btn("✅ Отправить $autoTg", 'tg_use_auto')];
-    }
+    if ($autoTg) $buttons[] = [btn("✅ Отправить $autoTg", 'tg_use_auto')];
     $buttons[] = [btn('⏭ Пропустить', 'tg_skip')];
-    $msg_text = "💬 <b>Telegram для связи</b>\n\n";
-    if ($autoTg) {
-        $msg_text .= "Ваш аккаунт: <b>$autoTg</b>\nНажмите кнопку, чтобы подтвердить, или введите другой @username:";
-    } else {
-        $msg_text .= "Введите ваш @username или нажмите «Пропустить»:";
-    }
+    $buttons[] = [btn('← Назад', 'go_back')];
+    $msg_text = stepBar('await_contact_telegram', $d) . "💬 <b>Telegram для связи</b>\n\n";
+    $msg_text .= $autoTg ? "Ваш аккаунт: <b>$autoTg</b>\nНажмите кнопку, чтобы подтвердить, или введите другой @username:" : "Введите ваш @username или нажмите «Пропустить»:";
     send($chatId, $msg_text, inlineKb($buttons));
     return;
 }
 
 if ($st['state'] === 'await_contact_telegram') {
-    // Текстовый ввод — значит ввели вручную
     $d = $st['data'];
     if ($text === '⏭ Пропустить' || $text === '-' || $text === '—') {
         $d['contact_telegram'] = '';
     } else {
         $d['contact_telegram'] = $text;
     }
-    // Проверяем, что хотя бы один способ связи указан
     $hasPhone = !empty($d['contact_phone']);
     $hasEmail = !empty($d['contact_email']);
     $hasTg    = !empty($d['contact_telegram']);
     if (!$hasPhone && !$hasEmail && !$hasTg) {
         send($chatId, "⚠ Вы пропустили все контакты. Укажите хотя бы один способ связи (телефон, email или Telegram), иначе мы не сможем с вами связаться.\n\n📞 <b>Введите номер телефона:</b>",
-            replyKb([[['text' => '❌ Отмена']]], true, false));
+            replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
         setState($chatId, 'await_contact_phone', $d);
         return;
     }
+    pushHistory($d, 'await_contact_telegram');
     setState($chatId, 'await_message', $d);
-    $cancelKb = replyKb([[['text' => '❌ Отмена']]], true, false);
-    send($chatId, "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.", $cancelKb);
+    send($chatId, stepBar('await_message', $d) . "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.",
+        replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
     return;
 }
 
@@ -1006,28 +1183,46 @@ if ($st['state'] === 'await_contact_telegram') {
 if ($st['state'] === 'await_message') {
     if (mb_strlen($text) < 20) { send($chatId, "⚠ Текст слишком короткий. Минимум 20 символов."); return; }
     $d = $st['data'];
+    pushHistory($d, 'await_message');
     $d['message_text'] = $text;
     $d['files'] = [];
     setState($chatId, 'await_files', $d);
-    send($chatId, "📎 <b>Прикрепите файлы или фото</b> (до 5 шт.)\n\nМожно отправить несколько. Когда закончите, нажмите кнопку ниже.",
-        inlineKb([[btn('✅ Отправить без файлов', 'skip_files'), btn('✅ Готово', 'done_files')]]));
+    send($chatId, stepBar('await_files', $d) . "📎 <b>Прикрепите файлы, фото или видео</b> (до 5 шт.)\n\nМожно отправить несколько. Когда закончите, нажмите кнопку ниже.",
+        inlineKb([[btn('✅ Отправить без файлов', 'skip_files'), btn('✅ Готово', 'done_files')], [btn('← Назад', 'go_back')]]));
     return;
 }
 
-// ── Приём файлов/фото ─────────────────────────────────
+// ── Приём файлов/фото/видео ───────────────────────────
 if ($st['state'] === 'await_files') {
-    // Получили файл или фото
     $fileId = null;
     $fileName = null;
+    $fileType = null;
 
     if (isset($msg['photo'])) {
-        // Берём самое большое фото
         $photo = end($msg['photo']);
         $fileId = $photo['file_id'];
         $fileName = 'photo_' . time() . '_' . rand(100,999) . '.jpg';
+        $fileType = '🖼';
+    } elseif (isset($msg['video'])) {
+        $fileId = $msg['video']['file_id'];
+        $fileName = $msg['video']['file_name'] ?? ('video_' . time() . '_' . rand(100,999) . '.mp4');
+        $fileType = '🎬';
     } elseif (isset($msg['document'])) {
         $fileId = $msg['document']['file_id'];
         $fileName = $msg['document']['file_name'] ?? ('file_' . time());
+        $fileType = '📄';
+    } elseif (isset($msg['voice'])) {
+        $fileId = $msg['voice']['file_id'];
+        $fileName = 'voice_' . time() . '_' . rand(100,999) . '.ogg';
+        $fileType = '🎤';
+    } elseif (isset($msg['audio'])) {
+        $fileId = $msg['audio']['file_id'];
+        $fileName = $msg['audio']['file_name'] ?? ('audio_' . time() . '_' . rand(100,999) . '.mp3');
+        $fileType = '🎵';
+    } elseif (isset($msg['video_note'])) {
+        $fileId = $msg['video_note']['file_id'];
+        $fileName = 'videonote_' . time() . '_' . rand(100,999) . '.mp4';
+        $fileType = '⏺';
     }
 
     if ($fileId) {
@@ -1041,15 +1236,15 @@ if ($st['state'] === 'await_files') {
         $files[] = ['file_id' => $fileId, 'file_name' => $fileName];
         $d['files'] = $files;
         setState($chatId, 'await_files', $d);
-        send($chatId, "📎 Файл принят (" . count($files) . "/5). Отправьте ещё или нажмите <b>Готово</b>.",
-            inlineKb([[btn('✅ Готово, отправить', 'done_files')]]));
+        $cnt = count($files);
+        send($chatId, "$fileType Принято ($cnt/5). Отправьте ещё или нажмите <b>Готово</b>.",
+            inlineKb([[btn('✅ Готово, отправить', 'done_files')], [btn('← Назад', 'go_back')]]));
         return;
     }
 
-    // Если прислали текст — предупреждаем
     if ($text && $text !== '❌ Отмена') {
-        send($chatId, "⚠ Сейчас ожидаются файлы/фото. Отправьте файл или нажмите кнопку.",
-            inlineKb([[btn('✅ Отправить без файлов', 'skip_files'), btn('✅ Готово', 'done_files')]]));
+        send($chatId, "⚠ Сейчас ожидаются файлы, фото или видео. Отправьте файл или нажмите кнопку.",
+            inlineKb([[btn('✅ Отправить без файлов', 'skip_files'), btn('✅ Готово', 'done_files')], [btn('← Назад', 'go_back')]]));
         return;
     }
 }
