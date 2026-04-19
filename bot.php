@@ -349,7 +349,7 @@ function askStep($chatId, $state, $data) {
     switch ($state) {
         case 'await_subject':
             send($chatId, $bar . "📝 <b>Введите тему сообщения</b> (одной строкой):",
-                replyKb([[['text' => '❌ Отмена']]], true, false));
+                replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
             break;
         case 'await_category':
             $rows = [];
@@ -410,7 +410,7 @@ function askStep($chatId, $state, $data) {
             break;
         case 'await_message':
             send($chatId, $bar . "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.",
-                replyKb([[['text' => '❌ Отмена']]], true, false));
+                replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
             break;
         case 'await_files':
             $cnt = count($data['files'] ?? []);
@@ -495,7 +495,7 @@ if (isset($update['callback_query'])) {
         setState($chatId, 'await_subject');
         tg('deleteMessage', ['chat_id' => $chatId, 'message_id' => $msgId]);
         send($chatId, stepBar('await_subject', []) . "📝 <b>Введите тему сообщения</b> (одной строкой):",
-            replyKb([[['text' => '❌ Отмена']]], true, false));
+            replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
         return;
     }
 
@@ -519,7 +519,7 @@ if (isset($update['callback_query'])) {
                 pushHistory($d, 'await_contact_telegram');
                 setState($chatId, 'await_message', $d);
                 send($chatId, stepBar('await_message', $d) . "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.",
-                    replyKb([[['text' => '❌ Отмена']]], true, false));
+                    replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
             }
         }
         return;
@@ -570,7 +570,7 @@ if (isset($update['callback_query'])) {
                 setState($chatId, 'await_message', $d);
                 tg('deleteMessage', ['chat_id' => $chatId, 'message_id' => $msgId]);
                 send($chatId, stepBar('await_message', $d) . "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.",
-                    replyKb([[['text' => '❌ Отмена']]], true, false));
+                    replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
             } else {
                 pushHistory($d, 'await_anon');
                 $d['is_anon'] = 0;
@@ -733,7 +733,7 @@ if (isset($update['callback_query'])) {
             setState($chatId, 'await_subject', $d);
             tg('deleteMessage', ['chat_id' => $chatId, 'message_id' => $msgId]);
             send($chatId, stepBar('await_subject', $d) . "📝 <b>Введите тему сообщения</b> (одной строкой):",
-                replyKb([[['text' => '❌ Отмена']]], true, false));
+                replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
         }
         return;
     }
@@ -1193,7 +1193,7 @@ if ($st['state'] === 'await_contact_telegram') {
     pushHistory($d, 'await_contact_telegram');
     setState($chatId, 'await_message', $d);
     send($chatId, stepBar('await_message', $d) . "✏️ <b>Напишите текст сообщения:</b>\n\nОпишите ситуацию подробно.",
-        replyKb([[['text' => '❌ Отмена']]], true, false));
+        replyKb([[['text' => '❌ Отмена'], ['text' => '← Назад']]], true, false));
     return;
 }
 
