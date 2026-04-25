@@ -1415,7 +1415,7 @@ if (!defined('BOT_POLL_MODE')) {
     if ($updateId) {
         $lockFile = sys_get_temp_dir() . '/bot_upd_' . $updateId . '.lock';
         if (file_exists($lockFile) && (time() - filemtime($lockFile)) < 60) {
-            file_put_contents($logFile,
+            @file_put_contents($logFile,
                 date('Y-m-d H:i:s') . " DUPLICATE upd=$updateId\n",
                 FILE_APPEND);
             http_response_code(200);
@@ -1425,22 +1425,32 @@ if (!defined('BOT_POLL_MODE')) {
         @touch($lockFile);
     }
 
-    // Сохраняем update в temp-файл и запускаем фонового воркера.
-    // Так Telegram получает 200 OK мгновенно — обработка идёт в отдельном процессе.
-    if ($update) {
-        $tmpFile = sys_get_temp_dir() . '/bot_upd_' . $updateId . '_' . uniqid() . '.json';
-        file_put_contents($tmpFile, $input);
-        $worker = __DIR__ . '/bot_worker.php';
-        $cmd = sprintf('nohup /usr/bin/php %s %s > /dev/null 2>&1 &',
-            escapeshellarg($worker),
-            escapeshellarg($tmpFile));
-        @exec($cmd);
-        file_put_contents($logFile,
-            date('Y-m-d H:i:s') . " SPAWNED upd=$updateId\n",
-            FILE_APPEND);
+    // Сразу отвечаем Telegram 200 OK и закрываем соединение через FPM,
+    // дальше уже обрабатываем update без спешки.
+    ignore_user_abort(true);
+    set_time_limit(30);
+    http_response_code(200);
+    header('Content-Type: text/plain');
+    header('Content-Length: 2');
+    echo 'ok';
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
     }
 
-    http_response_code(200);
-    echo 'ok';
-    exit;
+    if ($update) {
+        $startTime = microtime(true);
+        try {
+            processUpdate($update);
+            $ms = round((microtime(true) - $startTime) * 1000);
+            @file_put_contents($logFile,
+                date('Y-m-d H:i:s') . " OK upd=$updateId in {$ms}ms\n",
+                FILE_APPEND);
+        } catch (Exception $e) {
+            $ms = round((microtime(true) - $startTime) * 1000);
+            @file_put_contents($logFile,
+                date('Y-m-d H:i:s') . " ERROR upd=$updateId in {$ms}ms: " . $e->getMessage() . "\n",
+                FILE_APPEND);
+            error_log('Bot webhook error: ' . $e->getMessage());
+        }
+    }
 }
