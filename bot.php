@@ -37,19 +37,26 @@ try {
 }
 
 // ── TELEGRAM API ──────────────────────────────────────
+// Переиспользуем один curl-хендл на все вызовы в рамках одного запроса —
+// это экономит TLS handshake (~100-200ms на каждый последующий вызов).
 function tg($method, $params = [], $timeout = 10) {
-    $ch = curl_init("https://api.telegram.org/bot" . BOT_TOKEN . "/$method");
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => json_encode($params),
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => $timeout,
-        CURLOPT_CONNECTTIMEOUT => 5,
-        CURLOPT_DNS_CACHE_TIMEOUT => 300,
-    ]);
+    static $ch = null;
+    if ($ch === null) {
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_DNS_CACHE_TIMEOUT => 600,
+            CURLOPT_TCP_KEEPALIVE => 1,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_2TLS,
+        ]);
+    }
+    curl_setopt($ch, CURLOPT_URL, "https://api.telegram.org/bot" . BOT_TOKEN . "/$method");
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
+    curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
     $r = curl_exec($ch);
-    curl_close($ch);
     return json_decode($r, true);
 }
 
