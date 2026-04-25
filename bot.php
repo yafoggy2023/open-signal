@@ -1394,10 +1394,21 @@ if (!defined('BOT_POLL_MODE')) {
     $input = file_get_contents('php://input');
     $update = json_decode($input, true);
 
-    // Отвечаем Telegram 200 OK
+    // Отвечаем Telegram 200 OK и СРАЗУ закрываем соединение,
+    // чтобы Telegram не ждал окончания обработки.
+    ignore_user_abort(true);
+    set_time_limit(60);
     http_response_code(200);
     header('Content-Type: text/plain');
+    header('Content-Length: 2');
+    header('Connection: close');
     echo 'ok';
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    } else {
+        @ob_end_flush();
+        @flush();
+    }
 
     if ($update) {
         try { processUpdate($update); }
