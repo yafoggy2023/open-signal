@@ -1417,8 +1417,35 @@ if (!defined('BOT_POLL_MODE')) {
         @flush();
     }
 
+    // ── ЛОГИРОВАНИЕ + ДЕДУПЛИКАЦИЯ ─────────────────────
+    $logFile = __DIR__ . '/bot_webhook.log';
+    $startTime = microtime(true);
+    $updateId = $update['update_id'] ?? 0;
+
+    // Защита от повторных доставок одного и того же update_id (Telegram retry)
+    if ($updateId) {
+        $lockFile = sys_get_temp_dir() . '/bot_upd_' . $updateId . '.lock';
+        if (file_exists($lockFile) && (time() - filemtime($lockFile)) < 60) {
+            file_put_contents($logFile,
+                date('Y-m-d H:i:s') . " DUPLICATE update_id=$updateId — skipped\n",
+                FILE_APPEND);
+            exit;
+        }
+        @touch($lockFile);
+    }
+
     if ($update) {
-        try { processUpdate($update); }
-        catch (Exception $e) { error_log('Bot webhook error: ' . $e->getMessage()); }
+        try {
+            processUpdate($update);
+            $ms = round((microtime(true) - $startTime) * 1000);
+            file_put_contents($logFile,
+                date('Y-m-d H:i:s') . " OK upd=$updateId in {$ms}ms\n",
+                FILE_APPEND);
+        } catch (Exception $e) {
+            $ms = round((microtime(true) - $startTime) * 1000);
+            $msg = date('Y-m-d H:i:s') . " ERROR upd=$updateId in {$ms}ms: " . $e->getMessage() . "\n";
+            file_put_contents($logFile, $msg, FILE_APPEND);
+            error_log('Bot webhook error: ' . $e->getMessage());
+        }
     }
 }
