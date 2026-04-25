@@ -50,7 +50,7 @@ function tg($method, $params = [], $timeout = 10) {
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_DNS_CACHE_TIMEOUT => 600,
             CURLOPT_TCP_KEEPALIVE => 1,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_2TLS,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
         ]);
     }
