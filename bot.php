@@ -1400,52 +1400,40 @@ if (!defined('BOT_POLL_MODE')) {
     // Читаем input ДО любых заголовков
     $input = file_get_contents('php://input');
     $update = json_decode($input, true);
-
-    // Отвечаем Telegram 200 OK и СРАЗУ закрываем соединение,
-    // чтобы Telegram не ждал окончания обработки.
-    ignore_user_abort(true);
-    set_time_limit(60);
-    http_response_code(200);
-    header('Content-Type: text/plain');
-    header('Content-Length: 2');
-    header('Connection: close');
-    echo 'ok';
-    if (function_exists('fastcgi_finish_request')) {
-        fastcgi_finish_request();
-    } else {
-        @ob_end_flush();
-        @flush();
-    }
-
-    // ── ЛОГИРОВАНИЕ + ДЕДУПЛИКАЦИЯ ─────────────────────
-    $logFile = __DIR__ . '/bot_webhook.log';
-    $startTime = microtime(true);
     $updateId = $update['update_id'] ?? 0;
 
-    // Защита от повторных доставок одного и того же update_id (Telegram retry)
+    $logFile = __DIR__ . '/bot_webhook.log';
+
+    // Дедупликация: если этот update_id уже обрабатывается — отвечаем OK и выходим
     if ($updateId) {
         $lockFile = sys_get_temp_dir() . '/bot_upd_' . $updateId . '.lock';
         if (file_exists($lockFile) && (time() - filemtime($lockFile)) < 60) {
             file_put_contents($logFile,
-                date('Y-m-d H:i:s') . " DUPLICATE update_id=$updateId — skipped\n",
+                date('Y-m-d H:i:s') . " DUPLICATE upd=$updateId\n",
                 FILE_APPEND);
+            http_response_code(200);
+            echo 'ok';
             exit;
         }
         @touch($lockFile);
     }
 
+    // Сохраняем update в temp-файл и запускаем фонового воркера.
+    // Так Telegram получает 200 OK мгновенно — обработка идёт в отдельном процессе.
     if ($update) {
-        try {
-            processUpdate($update);
-            $ms = round((microtime(true) - $startTime) * 1000);
-            file_put_contents($logFile,
-                date('Y-m-d H:i:s') . " OK upd=$updateId in {$ms}ms\n",
-                FILE_APPEND);
-        } catch (Exception $e) {
-            $ms = round((microtime(true) - $startTime) * 1000);
-            $msg = date('Y-m-d H:i:s') . " ERROR upd=$updateId in {$ms}ms: " . $e->getMessage() . "\n";
-            file_put_contents($logFile, $msg, FILE_APPEND);
-            error_log('Bot webhook error: ' . $e->getMessage());
-        }
+        $tmpFile = sys_get_temp_dir() . '/bot_upd_' . $updateId . '_' . uniqid() . '.json';
+        file_put_contents($tmpFile, $input);
+        $worker = __DIR__ . '/bot_worker.php';
+        $cmd = sprintf('nohup /usr/bin/php %s %s > /dev/null 2>&1 &',
+            escapeshellarg($worker),
+            escapeshellarg($tmpFile));
+        @exec($cmd);
+        file_put_contents($logFile,
+            date('Y-m-d H:i:s') . " SPAWNED upd=$updateId\n",
+            FILE_APPEND);
     }
+
+    http_response_code(200);
+    echo 'ok';
+    exit;
 }
