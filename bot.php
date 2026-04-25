@@ -37,9 +37,10 @@ try {
 }
 
 // ── TELEGRAM API ──────────────────────────────────────
-// Переиспользуем один curl-хендл на все вызовы в рамках одного запроса —
-// это экономит TLS handshake (~100-200ms на каждый последующий вызов).
-function tg($method, $params = [], $timeout = 10) {
+// Переиспользуем один curl-хендл на все вызовы в рамках одного запроса.
+// Российский хостинг часто имеет нестабильный роут к api.telegram.org —
+// добавлен ретрай на случай первого таймаута.
+function tg($method, $params = [], $timeout = 15) {
     static $ch = null;
     if ($ch === null) {
         $ch = curl_init();
@@ -47,7 +48,6 @@ function tg($method, $params = [], $timeout = 10) {
             CURLOPT_POST => true,
             CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_DNS_CACHE_TIMEOUT => 600,
             CURLOPT_TCP_KEEPALIVE => 1,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
@@ -57,14 +57,27 @@ function tg($method, $params = [], $timeout = 10) {
     curl_setopt($ch, CURLOPT_URL, "https://api.telegram.org/bot" . BOT_TOKEN . "/$method");
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
     curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
-    $t0 = microtime(true);
-    $r = curl_exec($ch);
-    $ms = round((microtime(true) - $t0) * 1000);
-    if ($ms > 1000) {
-        @file_put_contents(__DIR__ . '/bot_webhook.log',
-            date('Y-m-d H:i:s') . " SLOW tg($method) {$ms}ms\n", FILE_APPEND);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 8);
+
+    $logFile = __DIR__ . '/bot_webhook.log';
+    $attempts = 2;
+    $lastErr = '';
+    for ($i = 1; $i <= $attempts; $i++) {
+        $t0 = microtime(true);
+        $r = curl_exec($ch);
+        $ms = round((microtime(true) - $t0) * 1000);
+        if ($r !== false) {
+            if ($ms > 1000) {
+                @file_put_contents($logFile,
+                    date('Y-m-d H:i:s') . " SLOW tg($method) attempt=$i {$ms}ms\n", FILE_APPEND);
+            }
+            return json_decode($r, true);
+        }
+        $lastErr = curl_error($ch);
+        @file_put_contents($logFile,
+            date('Y-m-d H:i:s') . " RETRY tg($method) attempt=$i {$ms}ms err=$lastErr\n", FILE_APPEND);
     }
-    return json_decode($r, true);
+    return null;
 }
 
 function send($chatId, $text, $keyboard = null, $parse = 'HTML') {
