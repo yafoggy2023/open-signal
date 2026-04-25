@@ -51,12 +51,19 @@ function tg($method, $params = [], $timeout = 10) {
             CURLOPT_DNS_CACHE_TIMEOUT => 600,
             CURLOPT_TCP_KEEPALIVE => 1,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_2TLS,
+            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
         ]);
     }
     curl_setopt($ch, CURLOPT_URL, "https://api.telegram.org/bot" . BOT_TOKEN . "/$method");
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
     curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+    $t0 = microtime(true);
     $r = curl_exec($ch);
+    $ms = round((microtime(true) - $t0) * 1000);
+    if ($ms > 1000) {
+        @file_put_contents(__DIR__ . '/bot_webhook.log',
+            date('Y-m-d H:i:s') . " SLOW tg($method) {$ms}ms\n", FILE_APPEND);
+    }
     return json_decode($r, true);
 }
 
